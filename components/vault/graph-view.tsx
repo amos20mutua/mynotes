@@ -443,11 +443,13 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   const safeTopStyle = {
     top: isMobile ? "calc(env(safe-area-inset-top, 0px) + 12px)" : undefined
   } as const;
+  const mobileHeaderOffset = showInstallHelp ? "calc(env(safe-area-inset-top, 0px) + 122px)" : "calc(env(safe-area-inset-top, 0px) + 12px)";
+  const topBarStyle = isMobile ? { top: mobileHeaderOffset } : safeTopStyle;
   const installSheetStyle = {
-    bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+    top: "calc(env(safe-area-inset-top, 0px) + 12px)"
   } as const;
   const mobilePanelStyle = {
-    bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+    bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)"
   } as const;
 
   const handleInstall = async () => {
@@ -482,12 +484,32 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   };
 
   return (
-    <section className="relative min-h-[90vh] overflow-hidden rounded-[32px] bg-[#090c14]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(140,204,251,0.08),transparent_24%),radial-gradient(circle_at_78%_22%,rgba(243,197,118,0.07),transparent_18%),radial-gradient(circle_at_48%_82%,rgba(113,211,190,0.06),transparent_24%)]" />
-      <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:156px_156px]" />
+    <section className="relative min-h-[100dvh] overflow-hidden rounded-[32px] border border-white/6 bg-[#050811] sm:min-h-[90vh]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(123,192,255,0.12),transparent_22%),radial-gradient(circle_at_78%_18%,rgba(255,196,120,0.1),transparent_18%),radial-gradient(circle_at_48%_75%,rgba(117,216,190,0.08),transparent_24%),linear-gradient(180deg,rgba(10,15,28,0.82),rgba(4,7,15,0.96))]" />
+      <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:180px_180px]" />
+      <div className="pointer-events-none absolute inset-x-[8%] top-[20%] h-[42%] rounded-full bg-[radial-gradient(circle,rgba(120,150,255,0.1),transparent_66%)] blur-3xl" />
 
-      <div style={safeTopStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
-        <div className="rounded-[22px] border border-white/10 bg-slate-950/40 px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-3 sm:shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:backdrop-blur-2xl">
+      {showInstallHelp ? (
+        <div style={installSheetStyle} className="absolute inset-x-4 z-30 sm:hidden">
+          <div className="rounded-[24px] border border-white/12 bg-[#030617]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-7 text-white">On iPhone, tap Share and choose Add to Home Screen.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInstallHelp(false)}
+                className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/6 text-sm text-slate-200 transition hover:bg-white/10"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div style={topBarStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
+        <div className="rounded-[22px] border border-white/10 bg-slate-950/34 px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-3 sm:shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:backdrop-blur-2xl">
           <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Obsidian Vault</p>
           <h1 className="mt-1 text-lg font-semibold text-white sm:text-2xl">Vault</h1>
         </div>
@@ -505,7 +527,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             </button>
           ) : null}
 
-          <div className="flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-slate-950/40 px-3 py-2 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:backdrop-blur-2xl">
+          <div className="flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-slate-950/34 px-3 py-2 shadow-[0_20px_56px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:backdrop-blur-2xl">
             <Search className="size-4 text-slate-500" />
             <Input
               value={searchInput}
@@ -621,8 +643,8 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               }
 
               const stroke = highlighted ? (activeDepth <= 1 ? ACTIVE_LINE_COLOR : HOVER_LINE_COLOR) : palette.edge;
-              const opacity = highlighted ? (activeDepth <= 1 ? 0.9 : 0.42) : 0.04 + frontFactor * 0.08;
-              const width = highlighted ? (activeDepth <= 1 ? 1.85 : 1.05) : 0.55;
+              const opacity = highlighted ? (activeDepth <= 1 ? 0.94 : 0.46) : 0.02 + frontFactor * 0.07;
+              const width = highlighted ? (activeDepth <= 1 ? 2.2 : 1.15) : 0.5;
 
               return <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />;
             })}
@@ -645,8 +667,8 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               const visibleByQuery = filteredNodeIds.has(node.id);
               const frontFactor = clamp((node.z + 1) / 2, 0, 1);
               const radius = node.radius * (selected ? 1.16 : hovered ? 1.08 : depth === 1 ? 1.03 : 1);
-              const nodeOpacity = !visibleByQuery ? 0.08 : selected ? 1 : hovered ? 0.94 : depth === 1 ? 0.84 : depth === 2 ? 0.5 : 0.18 + frontFactor * 0.42;
-              const haloOpacity = selected ? 0.38 : hovered ? 0.2 : depth === 1 ? 0.1 : 0.03;
+              const nodeOpacity = !visibleByQuery ? 0.07 : selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.88 : depth === 2 ? 0.54 : 0.15 + frontFactor * 0.48;
+              const haloOpacity = selected ? 0.42 : hovered ? 0.22 : depth === 1 ? 0.11 : 0.025;
               const showLabel = selected || hovered || depth === 1 || (baseNode.isHub && frontFactor > 0.62) || (visibleByQuery && frontFactor > 0.8 && node.radius > 5.5);
               const labelOpacity = selected ? 1 : hovered ? 0.95 : depth === 1 ? 0.78 : frontFactor * 0.55;
 
@@ -673,8 +695,8 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                   <circle r={radius} fill={selected ? "#f4c974" : palette.fill} fillOpacity={nodeOpacity} />
                   {showLabel ? (
                     <g transform={`translate(${radius + 8} ${-Math.max(2, radius * 0.25)})`} opacity={labelOpacity}>
-                      <rect x={-6} y={-13} rx={11} width={node.label.length * 5.8 + 14} height={22} fill="rgba(2,6,23,0.52)" stroke="rgba(255,255,255,0.08)" />
-                      <text fill={palette.label} fontSize="10" fontWeight="600" dominantBaseline="middle">
+                      <rect x={-6} y={-13} rx={11} width={node.label.length * 5.8 + 14} height={22} fill="rgba(2,6,23,0.64)" stroke="rgba(255,255,255,0.08)" />
+                      <text fill={palette.label} fontSize={isMobile ? "10.5" : "10"} fontWeight="600" dominantBaseline="middle">
                         {node.label}
                       </text>
                     </g>
@@ -687,7 +709,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       </div>
 
       <div
-        style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 104px)" } : undefined}
+        style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 118px)" } : undefined}
         className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
       >
         <button
@@ -708,18 +730,18 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       {previewNode ? (
         <div
           style={isMobile ? mobilePanelStyle : undefined}
-          className="absolute inset-x-3 z-20 rounded-[24px] border border-white/10 bg-slate-950/50 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl max-sm:max-h-[28vh] max-sm:overflow-y-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[300px] md:backdrop-blur-2xl"
+          className="absolute inset-x-3 z-20 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl max-sm:max-h-[34vh] max-sm:overflow-y-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
         >
           <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
             {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
           </p>
-          <h2 className="mt-2 text-xl font-semibold leading-tight text-white sm:text-2xl">{previewNode.label}</h2>
+          <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white sm:text-2xl">{previewNode.label}</h2>
 
-          <p className="mt-3 text-sm leading-7 text-slate-300">
+          <p className="mt-4 text-[15px] leading-8 text-slate-300">
             {previewNode.id === ROOT_NODE_ID
               ? "The vault core anchors the network and helps you move into nearby notes."
               : previewNote
-                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 80) : shortExcerpt(previewNote.content))
+                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 120) : shortExcerpt(previewNote.content))
                 : "This linked idea has not been expanded into a full note yet."}
           </p>
 
@@ -770,28 +792,12 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
         </div>
       ) : null}
 
-      {showInstallHelp ? (
-        <div style={installSheetStyle} className="absolute inset-x-3 z-30 sm:hidden">
-          <div className="rounded-[24px] border border-white/10 bg-slate-950/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Install on iPhone</p>
-                <p className="mt-2 text-sm leading-6 text-slate-100">Tap the Share button in Safari, then choose <span className="font-medium text-white">Add to Home Screen</span>.</p>
-              </div>
-              <button type="button" onClick={() => setShowInstallHelp(false)} className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-white/8">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       {composer ? (
         <div
-          className="fixed z-40 w-[280px] rounded-[26px] border border-white/10 bg-slate-950/74 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl"
+          className="fixed z-40 w-[280px] rounded-[26px] border border-white/10 bg-slate-950/74 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl max-sm:inset-x-4 max-sm:bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] max-sm:top-auto max-sm:w-auto"
           style={{
-            left: Math.min(composer.x, window.innerWidth - 304),
-            top: Math.min(composer.y, window.innerHeight - 180)
+            left: isMobile ? undefined : Math.min(composer.x, window.innerWidth - 304),
+            top: isMobile ? undefined : Math.min(composer.y, window.innerHeight - 180)
           }}
         >
           <p className="text-sm font-semibold text-white">Quick capture</p>

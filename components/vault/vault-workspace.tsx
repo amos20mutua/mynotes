@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, LoaderCircle, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -80,7 +80,16 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const selectNote = useVaultStore((state) => state.selectNote);
   const deleteNote = useVaultStore((state) => state.deleteNote);
   const [activeView, setActiveView] = useState<"vault" | "note">("vault");
+  const [isCompact, setIsCompact] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
+  const [keyboardInset, setKeyboardInset] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
   const seedLinks = initialVault.links.length > 0 ? initialVault.links : defaultVaultData.links;
@@ -115,6 +124,47 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeView]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const updateCompactMode = () => setIsCompact(mediaQuery.matches);
+    updateCompactMode();
+    mediaQuery.addEventListener("change", updateCompactMode);
+
+    return () => mediaQuery.removeEventListener("change", updateCompactMode);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || activeView !== "note") {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+
+    if (!viewport) {
+      return;
+    }
+
+    const updateViewportInset = () => {
+      const fullHeight = window.innerHeight;
+      const visibleHeight = viewport.height + viewport.offsetTop;
+      const nextInset = Math.max(0, fullHeight - visibleHeight);
+      setKeyboardInset(nextInset > 120 ? nextInset : 0);
+    };
+
+    updateViewportInset();
+    viewport.addEventListener("resize", updateViewportInset);
+    viewport.addEventListener("scroll", updateViewportInset);
+
+    return () => {
+      viewport.removeEventListener("resize", updateViewportInset);
+      viewport.removeEventListener("scroll", updateViewportInset);
+    };
   }, [activeView]);
 
   useEffect(() => {
@@ -155,6 +205,16 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       toast.error("Could not open linked note");
     }
   }
+
+  const noteDateLabel = selectedNote
+    ? new Intl.DateTimeFormat("en", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      }).format(new Date(selectedNote.updatedAt))
+    : "";
 
   if (loadError && effectiveNotes.length === 0) {
     return (
@@ -255,17 +315,38 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-5 transition-all duration-300 ease-out sm:px-6 lg:px-8">
-      <div className="rounded-[32px] border border-white/10 bg-slate-950/55 p-5 backdrop-blur-2xl transition-all duration-300 ease-out sm:p-7">
+    <div className={isCompact ? "min-h-dvh bg-black" : "mx-auto max-w-6xl px-4 py-5 transition-all duration-300 ease-out sm:px-6 lg:px-8"}>
+      <div
+        className={
+          isCompact
+            ? "min-h-dvh bg-black text-white"
+            : "rounded-[36px] border border-white/10 bg-slate-950/60 p-5 shadow-[0_30px_120px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition-all duration-300 ease-out sm:p-7"
+        }
+      >
         {selectedNote ? (
           <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Button variant="secondary" size="sm" type="button" onClick={() => setActiveView("vault")}>
-                <ArrowLeft className="size-4" />
-                Back to vault
-              </Button>
-              <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500">
-                <span>{isSaving ? "Saving..." : `Saved ${formatUpdatedAt(selectedNote.updatedAt)}`}</span>
+            <div
+              className={
+                isCompact
+                  ? "sticky top-0 z-20 -mx-4 flex items-center justify-between gap-3 bg-black/92 px-4 pb-4 pt-[calc(env(safe-area-inset-top,0px)+14px)] backdrop-blur-xl"
+                  : "flex flex-wrap items-center justify-between gap-3"
+              }
+            >
+              <button
+                type="button"
+                onClick={() => setActiveView("vault")}
+                className={
+                  isCompact
+                    ? "inline-flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_20px_56px_rgba(0,0,0,0.28)] transition hover:bg-white/16"
+                    : "inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
+                }
+              >
+                <ArrowLeft className="size-5" />
+                {!isCompact ? <span>Back to vault</span> : null}
+              </button>
+
+              <div className={isCompact ? "flex items-center gap-3" : "flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500"}>
+                {!isCompact ? <span>{isSaving ? "Saving..." : `Saved ${formatUpdatedAt(selectedNote.updatedAt)}`}</span> : null}
                 <button
                   type="button"
                   onClick={async () => {
@@ -277,18 +358,41 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                       toast.error("Could not delete note");
                     }
                   }}
-                  className="rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-red-100 transition hover:bg-red-400/20"
+                  className={
+                    isCompact
+                      ? "inline-flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_20px_56px_rgba(0,0,0,0.28)] transition hover:bg-white/16"
+                      : "rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-red-100 transition hover:bg-red-400/20"
+                  }
                   disabled={effectiveNotes.length === 1}
+                  aria-label="Delete note"
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <Trash2 className="size-3.5" />
-                    Delete
-                  </span>
+                  <Trash2 className="size-4" />
+                  {!isCompact ? (
+                    <span className="ml-1 inline-flex items-center gap-1.5">
+                      Delete
+                    </span>
+                  ) : null}
                 </button>
+                {isCompact ? (
+                  <div className="inline-flex size-12 items-center justify-center rounded-full bg-[#f5c400] text-black shadow-[0_20px_56px_rgba(245,196,0,0.28)]">
+                    <Check className="size-6" />
+                  </div>
+                ) : null}
               </div>
             </div>
 
-            <div className="mt-6 space-y-4">
+            <div
+              className={isCompact ? "px-4 pb-6" : "mt-6 space-y-4"}
+              style={
+                isCompact
+                  ? {
+                      paddingBottom: `max(calc(env(safe-area-inset-bottom, 0px) + 136px), ${keyboardInset + 112}px)`
+                    }
+                  : undefined
+              }
+            >
+              {isCompact ? <p className="pt-3 text-center text-[15px] text-white/45">{noteDateLabel}</p> : null}
+
               <Input
                 key={`${selectedNote.id}-title`}
                 defaultValue={selectedNote.title}
@@ -296,42 +400,93 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                   void queueSave({ title: event.target.value });
                 }}
                 placeholder="Untitled note"
-                className="h-14 rounded-[24px] text-2xl font-semibold"
+                className={
+                  isCompact
+                    ? "mt-3 h-auto border-0 bg-transparent px-0 py-0 text-[34px] font-semibold leading-[1.05] text-white shadow-none focus:border-0"
+                    : "h-16 rounded-[28px] border-white/10 bg-white/[0.04] text-3xl font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                }
               />
 
               <Textarea
+                ref={textareaRef}
                 key={`${selectedNote.id}-content`}
                 defaultValue={selectedNote.content}
                 onChange={(event) => {
                   void queueSave({ content: event.target.value });
                 }}
                 placeholder="Write your note in Markdown..."
-                className="min-h-[58vh] resize-none rounded-[28px] px-5 py-4 text-base leading-7"
+                className={
+                  isCompact
+                    ? "mt-8 min-h-[56vh] resize-none border-0 bg-transparent px-0 py-0 text-[18px] leading-[1.72] text-white/92 shadow-none focus:border-0"
+                    : "min-h-[60vh] resize-none rounded-[32px] border-white/10 bg-black/20 px-6 py-5 text-[17px] leading-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                }
+                style={
+                  isCompact
+                    ? {
+                        minHeight: keyboardInset > 0 ? `max(46vh, calc(100dvh - ${keyboardInset + 290}px))` : "62vh"
+                      }
+                    : undefined
+                }
               />
-            </div>
 
-            <div className="mt-6 rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Backlinks</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {backlinks.length ? (
-                  backlinks.map((note) => (
-                    <button
-                      key={note.id}
-                      type="button"
-                      onClick={() => {
-                        selectNote(note.id);
-                        setActiveView("note");
-                      }}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/8"
-                    >
-                      {note.title}
-                    </button>
-                  ))
-                ) : (
-                  <p className="text-sm text-slate-400">No backlinks yet.</p>
-                )}
+              <div className={isCompact ? "mt-8 space-y-3" : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+                <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Backlinks</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {backlinks.length ? (
+                    backlinks.map((note) => (
+                      <button
+                        key={note.id}
+                        type="button"
+                        onClick={() => {
+                          selectNote(note.id);
+                          setActiveView("note");
+                        }}
+                        className={
+                          isCompact
+                            ? "rounded-full border border-white/10 bg-white/8 px-4 py-2.5 text-[15px] text-white/88 transition hover:bg-white/14"
+                            : "rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/8"
+                        }
+                      >
+                        {note.title}
+                      </button>
+                    ))
+                  ) : (
+                    <p className={isCompact ? "text-[15px] text-white/42" : "text-sm text-slate-400"}>No backlinks yet.</p>
+                  )}
+                </div>
               </div>
             </div>
+
+            {isCompact ? (
+              <div
+                className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+18px)]"
+                style={{ bottom: keyboardInset > 0 ? `${keyboardInset}px` : "0px" }}
+              >
+                <div className="pointer-events-auto mx-auto flex max-w-[360px] items-center justify-between rounded-[30px] border border-white/10 bg-white/10 px-3 py-2 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setActiveView("vault")}
+                    className="rounded-full px-3 py-2 text-sm font-medium text-white/82 transition hover:bg-white/10"
+                  >
+                    Graph
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => textareaRef.current?.focus()}
+                    className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
+                  >
+                    Write
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
+                    className="rounded-full px-3 py-2 text-sm font-medium text-white/82 transition hover:bg-white/10"
+                  >
+                    Bottom
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center">
