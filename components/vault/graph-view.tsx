@@ -729,32 +729,32 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
       {previewNode ? (
         <div
-          style={isMobile ? mobilePanelStyle : undefined}
-          className="absolute inset-x-3 z-20 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl max-sm:max-h-[34vh] max-sm:overflow-y-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
+          style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
+          className="absolute inset-x-3 z-20 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl max-sm:inset-x-auto max-sm:max-h-[18vh] max-sm:min-h-[132px] max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:p-3.5 md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
         >
           <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
             {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
           </p>
-          <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white sm:text-2xl">{previewNode.label}</h2>
+          <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white max-sm:text-[1.1rem] sm:text-2xl">{previewNode.label}</h2>
 
-          <p className="mt-4 text-[15px] leading-8 text-slate-300">
+          <p className="mt-4 text-[15px] leading-8 text-slate-300 max-sm:mt-2 max-sm:text-[12px] max-sm:leading-5">
             {previewNode.id === ROOT_NODE_ID
               ? "The vault core anchors the network and helps you move into nearby notes."
               : previewNote
-                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 120) : shortExcerpt(previewNote.content))
+                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 48) : shortExcerpt(previewNote.content))
                 : "This linked idea has not been expanded into a full note yet."}
           </p>
 
           {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
-            <div className="mt-4">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Connected notes</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 3 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 3 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
+            <div className="mt-4 max-sm:mt-2">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 max-sm:text-[9px]">Connected notes</p>
+              <div className="mt-3 flex flex-wrap gap-2 max-sm:mt-2">
+                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 2 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 2 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => handleNodeClick(item.nodeId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8"
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
                   >
                     {item.title}
                   </button>
@@ -763,15 +763,15 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             </div>
           ) : null}
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2 max-sm:mt-2">
             <button
               type="button"
               onClick={handlePanelOpen}
-              className="rounded-full border border-cyan-300/18 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100 transition hover:bg-cyan-300/20"
+              className="rounded-full border border-cyan-300/18 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100 transition hover:bg-cyan-300/20 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
             >
               <span className="inline-flex items-center gap-1.5">
                 <ArrowLeft className="size-3.5" />
-                Open note
+                {isMobile ? "Open" : "Open note"}
               </span>
             </button>
             {previewNote ? (
@@ -780,11 +780,11 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 onClick={() => {
                   void onDeleteNote(previewNote.id);
                 }}
-                className="rounded-full border border-red-400/18 bg-red-400/10 px-3 py-1.5 text-xs text-red-100 transition hover:bg-red-400/20"
+                className="rounded-full border border-red-400/18 bg-red-400/10 px-3 py-1.5 text-xs text-red-100 transition hover:bg-red-400/20 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Trash2 className="size-3.5" />
-                  Delete
+                  {isMobile ? "Del" : "Delete"}
                 </span>
               </button>
             ) : null}
