@@ -430,6 +430,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
   const handleInstall = async () => {
     const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+    const isAndroid = /android/i.test(window.navigator.userAgent);
 
     if (isStandaloneApp) {
       toast.message("Already installed");
@@ -450,7 +451,12 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       return;
     }
 
-    toast.message("Install is not available yet on this browser session.");
+    if (isAndroid) {
+      toast.message("On Android, use the browser menu and choose Install app or Add to Home screen.");
+      return;
+    }
+
+    toast.message("Use your browser menu to install this app if the prompt does not appear.");
   };
 
   return (
