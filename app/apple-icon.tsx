@@ -37,6 +37,9 @@ export default function AppleIcon() {
             style={{
               width: 72,
               height: 72,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               borderRadius: 999,
               border: "2px solid rgba(177, 208, 232, 0.34)",
               position: "relative"

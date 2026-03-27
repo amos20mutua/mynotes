@@ -47,7 +47,7 @@ function openExistingOrCreateLinkedNote(
     colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
     folder: selectedNote?.folder ?? "Vault",
     status: "draft",
-    content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Obsidian Vault"}]]`
+    content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Vault"}]]`
   }).then(async () => {
     const latest = useVaultStore.getState().notes[0];
 
@@ -56,7 +56,7 @@ function openExistingOrCreateLinkedNote(
         title,
         colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
         folder: selectedNote?.folder ?? "Vault",
-        content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Obsidian Vault"}]]`
+        content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Vault"}]]`
       });
       selectNote(latest.id);
     }
@@ -290,7 +290,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             }}
             onOpenEditor={() => setActiveView("note")}
             onCreateNoteAtPoint={async (title, graphPosition, connectToTitle) => {
-              const anchorTitle = connectToTitle ?? selectedNote?.title ?? "Welcome to Obsidian Vault";
+              const anchorTitle = connectToTitle ?? selectedNote?.title ?? "Welcome to Vault";
               await createNote({
                 title,
                 colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",

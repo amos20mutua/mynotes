@@ -48,6 +48,9 @@ export default function Icon() {
               position: "relative",
               width: 176,
               height: 176,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               borderRadius: 999,
               border: "2px solid rgba(177, 208, 232, 0.38)",
               boxShadow: "0 0 0 1px rgba(255,255,255,0.02) inset"

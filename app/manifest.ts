@@ -3,7 +3,7 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Obsidian Vault",
+    name: "Vault",
     short_name: "Vault",
     description: "A graph-first personal digital brain with permanent local note storage.",
     lang: "en",

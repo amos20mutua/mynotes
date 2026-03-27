@@ -1,7 +1,7 @@
 import type { Route } from "next";
 
 export const siteConfig = {
-  name: "Obsidian Vault",
+  name: "Vault",
   description:
     "A local-first writing workspace for capturing notes, shaping ideas, and building your own personal vault.",
   url: "http://127.0.0.1:3000",

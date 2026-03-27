@@ -58,14 +58,14 @@ const CAMERA_DISTANCE = 2.45;
 const SPHERE_CENTER_X = VIEWPORT_WIDTH / 2;
 const SPHERE_CENTER_Y = VIEWPORT_HEIGHT * 0.37;
 const AUTO_ROTATE_SPEED = 0.00018;
-const ACTIVE_LINE_COLOR = "#b86a6a";
-const HOVER_LINE_COLOR = "#b38a8a";
+const ACTIVE_LINE_COLOR = "#b36a67";
+const HOVER_LINE_COLOR = "#946363";
 
 const clusterPalette = [
-  { fill: "#e6bf7d", glow: "rgba(230, 191, 125, 0.18)", edge: "rgba(230, 191, 125, 0.12)", label: "#fcf2dd" },
-  { fill: "#8ab9d6", glow: "rgba(138, 185, 214, 0.18)", edge: "rgba(138, 185, 214, 0.12)", label: "#eef8ff" },
-  { fill: "#73b5a8", glow: "rgba(115, 181, 168, 0.16)", edge: "rgba(115, 181, 168, 0.1)", label: "#ebfbf7" },
-  { fill: "#b8acd6", glow: "rgba(184, 172, 214, 0.15)", edge: "rgba(184, 172, 214, 0.1)", label: "#f4efff" }
+  { fill: "#c89a4a", selected: "#efbf72", glow: "rgba(239, 191, 114, 0.24)", edge: "rgba(118, 134, 164, 0.16)", label: "#f4efe6", frontLabel: "#fffaf2" },
+  { fill: "#6f95c4", selected: "#8cb3e2", glow: "rgba(140, 179, 226, 0.2)", edge: "rgba(118, 134, 164, 0.16)", label: "#eef3f9", frontLabel: "#f8fbff" },
+  { fill: "#5e978d", selected: "#7db6aa", glow: "rgba(125, 182, 170, 0.18)", edge: "rgba(118, 134, 164, 0.16)", label: "#e8efec", frontLabel: "#f3faf7" },
+  { fill: "#6886ab", selected: "#87a6cd", glow: "rgba(135, 166, 205, 0.19)", edge: "rgba(118, 134, 164, 0.16)", label: "#edf2f7", frontLabel: "#f9fbff" }
 ] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -509,10 +509,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       ) : null}
 
       <div style={topBarStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
-        <div className="rounded-[22px] border border-white/10 bg-slate-950/34 px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-3 sm:shadow-[0_24px_70px_rgba(0,0,0,0.28)] sm:backdrop-blur-2xl">
-          <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Obsidian Vault</p>
-          <h1 className="mt-1 text-lg font-semibold text-white sm:text-2xl">Vault</h1>
-        </div>
+        <h1 className="px-1 pt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
 
         <div className="flex min-w-0 items-center gap-2">
           {!isStandaloneApp ? (
@@ -643,8 +640,8 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               }
 
               const stroke = highlighted ? (activeDepth <= 1 ? ACTIVE_LINE_COLOR : HOVER_LINE_COLOR) : palette.edge;
-              const opacity = highlighted ? (activeDepth <= 1 ? 0.94 : 0.46) : 0.02 + frontFactor * 0.07;
-              const width = highlighted ? (activeDepth <= 1 ? 2.2 : 1.15) : 0.5;
+              const opacity = highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.015 + frontFactor * 0.045;
+              const width = highlighted ? (activeDepth <= 1 ? 1.85 : 1.02) : 0.42;
 
               return <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />;
             })}
@@ -657,9 +654,9 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
               const palette =
                 node.id === ROOT_NODE_ID
-                  ? { fill: "#f4c974", glow: "rgba(243,197,118,0.26)", label: "#fff6dc" }
+                  ? { fill: "#d0a156", selected: "#f0c16e", glow: "rgba(240,193,110,0.28)", label: "#f4ede1", frontLabel: "#fff9ef" }
                   : baseNode.type === "ghost"
-                    ? { fill: "#d8b4fe", glow: "rgba(216,180,254,0.18)", label: "#faf5ff" }
+                    ? { fill: "#6a8fb8", selected: "#88afd8", glow: "rgba(136,175,216,0.2)", label: "#edf2f7", frontLabel: "#fbfdff" }
                     : getClusterColor(baseNode.cluster);
               const selected = node.id === activeNodeId;
               const hovered = node.id === hoveredNodeId;
@@ -667,10 +664,12 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               const visibleByQuery = filteredNodeIds.has(node.id);
               const frontFactor = clamp((node.z + 1) / 2, 0, 1);
               const radius = node.radius * (selected ? 1.16 : hovered ? 1.08 : depth === 1 ? 1.03 : 1);
-              const nodeOpacity = !visibleByQuery ? 0.07 : selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.88 : depth === 2 ? 0.54 : 0.15 + frontFactor * 0.48;
-              const haloOpacity = selected ? 0.42 : hovered ? 0.22 : depth === 1 ? 0.11 : 0.025;
+              const nodeOpacity = !visibleByQuery ? 0.06 : selected ? 1 : hovered ? 0.92 : depth === 1 ? 0.8 : depth === 2 ? 0.46 : 0.12 + frontFactor * 0.42;
+              const haloOpacity = selected ? 0.28 : hovered ? 0.14 : depth === 1 ? 0.08 : 0.02;
               const showLabel = selected || hovered || depth === 1 || (baseNode.isHub && frontFactor > 0.62) || (visibleByQuery && frontFactor > 0.8 && node.radius > 5.5);
-              const labelOpacity = selected ? 1 : hovered ? 0.95 : depth === 1 ? 0.78 : frontFactor * 0.55;
+              const labelOpacity = selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.84 : 0.42 + frontFactor * 0.42;
+              const labelColor = selected || frontFactor > 0.72 ? palette.frontLabel : palette.label;
+              const nodeFill = selected ? palette.selected : hovered ? palette.selected : palette.fill;
 
               return (
                 <g
@@ -692,11 +691,11 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 >
                   <circle r={Math.max(radius * 2.1, 12)} fill="transparent" />
                   <circle r={radius * 1.8} fill={palette.glow} opacity={haloOpacity} />
-                  <circle r={radius} fill={selected ? "#f4c974" : palette.fill} fillOpacity={nodeOpacity} />
+                  <circle r={radius} fill={nodeFill} fillOpacity={nodeOpacity} />
                   {showLabel ? (
                     <g transform={`translate(${radius + 8} ${-Math.max(2, radius * 0.25)})`} opacity={labelOpacity}>
-                      <rect x={-6} y={-13} rx={11} width={node.label.length * 5.8 + 14} height={22} fill="rgba(2,6,23,0.64)" stroke="rgba(255,255,255,0.08)" />
-                      <text fill={palette.label} fontSize={isMobile ? "10.5" : "10"} fontWeight="600" dominantBaseline="middle">
+                      <rect x={-6} y={-13} rx={11} width={node.label.length * 5.8 + 14} height={22} fill="rgba(3,7,18,0.78)" stroke="rgba(255,255,255,0.06)" />
+                      <text fill={labelColor} fontSize={isMobile ? "10.5" : "10"} fontWeight="600" dominantBaseline="middle">
                         {node.label}
                       </text>
                     </g>
