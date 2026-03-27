@@ -1,0 +1,488 @@
+{
+  "notes": [
+    {
+      "id": "welcome-note",
+      "title": "Welcome to Obsidian Vault",
+      "content": "# Welcome to Obsidian Vault\n\nLinked from [[Research note]]",
+      "folder": "Research",
+      "tags": [],
+      "isPinned": true,
+      "status": "active",
+      "createdAt": "2026-03-27T10:00:00.000Z",
+      "updatedAt": "2026-03-27T14:19:26.020Z"
+    },
+    {
+      "id": "29b8f12d-b0e7-44df-aad1-8f1e70bd9424",
+      "title": "Untitled note",
+      "content": "",
+      "folder": "Workspace",
+      "tags": [],
+      "isPinned": false,
+      "status": "draft",
+      "createdAt": "2026-03-27T14:19:25.749Z",
+      "updatedAt": "2026-03-27T14:19:25.749Z"
+    },
+    {
+      "id": "future-bets",
+      "title": "Future Bets",
+      "folder": "Ideas",
+      "tags": [
+        "bets",
+        "strategy"
+      ],
+      "content": "# Future Bets\n\n- Relates to [[Quarter Planning]]\n- Connects speculative work from [[AI Lab Notes]]\n- Reassess during [[Weekly Review]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:55:00.000Z",
+      "updatedAt": "2026-03-27T12:55:00.000Z"
+    },
+    {
+      "id": "idea-incubator",
+      "title": "Idea Incubator",
+      "folder": "Ideas",
+      "tags": [
+        "ideas",
+        "incubation"
+      ],
+      "content": "# Idea Incubator\n\n- Keep rough ideas from [[Inbox]]\n- Test whether they belong in [[Content Studio]] or [[AI Lab Notes]]\n- Push stable ones into [[Concept Garden]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:50:00.000Z",
+      "updatedAt": "2026-03-27T12:50:00.000Z"
+    },
+    {
+      "id": "synthesis-notes",
+      "title": "Synthesis Notes",
+      "folder": "Ideas",
+      "tags": [
+        "thinking",
+        "synthesis"
+      ],
+      "content": "# Synthesis Notes\n\n- Blend [[Reference Notes]] with [[Evergreen Ideas]]\n- Surface themes back into [[Knowledge Graph]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:45:00.000Z",
+      "updatedAt": "2026-03-27T12:45:00.000Z"
+    },
+    {
+      "id": "personal-os",
+      "title": "Personal OS",
+      "folder": "Ideas",
+      "tags": [
+        "systems",
+        "life"
+      ],
+      "content": "# Personal OS\n\n- Combines [[Focus System]], [[Weekly Review]], and [[Decision Journal]]\n- Informs how [[Projects Index]] evolves",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:40:00.000Z",
+      "updatedAt": "2026-03-27T12:40:00.000Z"
+    },
+    {
+      "id": "concept-garden",
+      "title": "Concept Garden",
+      "folder": "Ideas",
+      "tags": [
+        "ideas",
+        "garden"
+      ],
+      "content": "# Concept Garden\n\n- Organize themes from [[Evergreen Ideas]]\n- Structure by [[Maps of Thought]]\n- Revisit with [[Writing Principles]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:35:00.000Z",
+      "updatedAt": "2026-03-27T12:35:00.000Z"
+    },
+    {
+      "id": "evergreen-ideas",
+      "title": "Evergreen Ideas",
+      "folder": "Ideas",
+      "tags": [
+        "ideas",
+        "evergreen"
+      ],
+      "content": "# Evergreen Ideas\n\n- Pull from [[Inbox]]\n- Connect to [[Maps of Thought]]\n- Graduate promising threads to [[Projects Index]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:30:00.000Z",
+      "updatedAt": "2026-03-27T12:30:00.000Z"
+    },
+    {
+      "id": "weekly-review",
+      "title": "Weekly Review",
+      "folder": "Workspace",
+      "tags": [
+        "review",
+        "systems"
+      ],
+      "content": "# Weekly Review\n\n- Scan [[Projects Index]]\n- Reconnect with [[Open Questions]]\n- Rebalance [[Focus System]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:25:00.000Z",
+      "updatedAt": "2026-03-27T12:25:00.000Z"
+    },
+    {
+      "id": "meeting-notes",
+      "title": "Meeting Notes",
+      "folder": "Content",
+      "tags": [
+        "meetings",
+        "coordination"
+      ],
+      "content": "# Meeting Notes\n\n- Convert outcomes into [[Decision Journal]]\n- Push tasks into [[Launch Checklist]]\n- Promote insights into [[Projects Index]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:20:00.000Z",
+      "updatedAt": "2026-03-27T12:20:00.000Z"
+    },
+    {
+      "id": "storytelling-patterns",
+      "title": "Storytelling Patterns",
+      "folder": "Content",
+      "tags": [
+        "writing",
+        "content"
+      ],
+      "content": "# Storytelling Patterns\n\n- Derived from [[Content Strategy]]\n- Supports stronger notes in [[Writing Principles]]\n- Inspires themes for [[Content Studio]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:15:00.000Z",
+      "updatedAt": "2026-03-27T12:15:00.000Z"
+    },
+    {
+      "id": "design-critique-notes",
+      "title": "Design Critique Notes",
+      "folder": "Content",
+      "tags": [
+        "design",
+        "review"
+      ],
+      "content": "# Design Critique Notes\n\n- Review visual issues on [[Website Refresh]]\n- Link feedback loops into [[Launch Checklist]]\n- Store recurring patterns in [[Writing Principles]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:10:00.000Z",
+      "updatedAt": "2026-03-27T12:10:00.000Z"
+    },
+    {
+      "id": "editorial-calendar",
+      "title": "Editorial Calendar",
+      "folder": "Content",
+      "tags": [
+        "content",
+        "calendar"
+      ],
+      "content": "# Editorial Calendar\n\n- Pulls priorities from [[Content Strategy]]\n- Keeps shipping aligned with [[Quarter Planning]]\n- Tracks publishing from [[Content Studio]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:05:00.000Z",
+      "updatedAt": "2026-03-27T12:05:00.000Z"
+    },
+    {
+      "id": "content-strategy",
+      "title": "Content Strategy",
+      "folder": "Content",
+      "tags": [
+        "content",
+        "strategy"
+      ],
+      "content": "# Content Strategy\n\n- Guided by [[Content Studio]]\n- Scheduled inside [[Editorial Calendar]]\n- Supports storytelling for [[Website Refresh]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T12:00:00.000Z",
+      "updatedAt": "2026-03-27T12:00:00.000Z"
+    },
+    {
+      "id": "decision-journal",
+      "title": "Decision Journal",
+      "folder": "Workspace",
+      "tags": [
+        "reflection",
+        "systems"
+      ],
+      "content": "# Decision Journal\n\n- Capture choices from [[Quarter Planning]]\n- Review tradeoffs from [[Systems Design Notes]]\n- Revisit assumptions through [[Open Questions]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:55:00.000Z",
+      "updatedAt": "2026-03-27T11:55:00.000Z"
+    },
+    {
+      "id": "deep-work-rituals",
+      "title": "Deep Work Rituals",
+      "folder": "Workspace",
+      "tags": [
+        "focus",
+        "habits"
+      ],
+      "content": "# Deep Work Rituals\n\n- Supports [[Focus System]]\n- Creates better notes inside [[Daily Notes Template]]\n- Protects momentum on [[Website Refresh]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:50:00.000Z",
+      "updatedAt": "2026-03-27T11:50:00.000Z"
+    },
+    {
+      "id": "prompt-patterns",
+      "title": "Prompt Patterns",
+      "folder": "Research",
+      "tags": [
+        "ai",
+        "prompts"
+      ],
+      "content": "# Prompt Patterns\n\n- Tested inside [[AI Lab Notes]]\n- Connect to [[Open Questions]]\n- Inform experiments in [[Systems Design Notes]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:45:00.000Z",
+      "updatedAt": "2026-03-27T11:45:00.000Z"
+    },
+    {
+      "id": "reference-notes",
+      "title": "Reference Notes",
+      "folder": "Research",
+      "tags": [
+        "reference",
+        "reading"
+      ],
+      "content": "# Reference Notes\n\n- Distill ideas from [[Reading Queue]]\n- Promote durable patterns into [[Writing Principles]]\n- Feed concepts into [[Learning Roadmap]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:40:00.000Z",
+      "updatedAt": "2026-03-27T11:40:00.000Z"
+    },
+    {
+      "id": "architecture-heuristics",
+      "title": "Architecture Heuristics",
+      "folder": "Research",
+      "tags": [
+        "systems",
+        "heuristics"
+      ],
+      "content": "# Architecture Heuristics\n\n- Layering supports [[Systems Design Notes]]\n- Operational concerns connect to [[Launch Checklist]]\n- Product thinking loops back into [[Website Refresh]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:35:00.000Z",
+      "updatedAt": "2026-03-27T11:35:00.000Z"
+    },
+    {
+      "id": "systems-design-notes",
+      "title": "Systems Design Notes",
+      "folder": "Research",
+      "tags": [
+        "systems",
+        "architecture"
+      ],
+      "content": "# Systems Design Notes\n\n- Related to [[AI Lab Notes]]\n- Clarify tradeoffs with [[Architecture Heuristics]]\n- Keep mental models in [[Maps of Thought]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:30:00.000Z",
+      "updatedAt": "2026-03-27T11:30:00.000Z"
+    },
+    {
+      "id": "quarter-planning",
+      "title": "Quarter Planning",
+      "folder": "Projects",
+      "tags": [
+        "planning",
+        "systems"
+      ],
+      "content": "# Quarter Planning\n\n- Balance [[Focus System]] with [[Learning Roadmap]]\n- Turn active projects into milestones for [[Projects Index]]\n- Reprioritize from [[Open Questions]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:25:00.000Z",
+      "updatedAt": "2026-03-27T11:25:00.000Z"
+    },
+    {
+      "id": "launch-checklist",
+      "title": "Launch Checklist",
+      "folder": "Projects",
+      "tags": [
+        "ops",
+        "launch"
+      ],
+      "content": "# Launch Checklist\n\n- Align with [[Website Refresh]]\n- Pull assets from [[Content Studio]]\n- Final pass against [[Design Critique Notes]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:20:00.000Z",
+      "updatedAt": "2026-03-27T11:20:00.000Z"
+    },
+    {
+      "id": "ai-lab-notes",
+      "title": "AI Lab Notes",
+      "folder": "Projects",
+      "tags": [
+        "project",
+        "ai"
+      ],
+      "content": "# AI Lab Notes\n\n- Track experiments from [[Prompt Patterns]]\n- Link product concepts into [[Systems Design Notes]]\n- Collect open threads inside [[Open Questions]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:15:00.000Z",
+      "updatedAt": "2026-03-27T11:15:00.000Z"
+    },
+    {
+      "id": "content-studio",
+      "title": "Content Studio",
+      "folder": "Projects",
+      "tags": [
+        "project",
+        "content"
+      ],
+      "content": "# Content Studio\n\n- Source ideas from [[Reading Queue]]\n- Refine themes inside [[Content Strategy]]\n- Review cadence through [[Editorial Calendar]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:10:00.000Z",
+      "updatedAt": "2026-03-27T11:10:00.000Z"
+    },
+    {
+      "id": "learning-roadmap",
+      "title": "Learning Roadmap",
+      "folder": "Projects",
+      "tags": [
+        "project",
+        "learning"
+      ],
+      "content": "# Learning Roadmap\n\n- Organize concepts from [[Reference Notes]]\n- Feed deeper topics into [[Systems Design Notes]]\n- Keep the long arc visible in [[Quarter Planning]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:05:00.000Z",
+      "updatedAt": "2026-03-27T11:05:00.000Z"
+    },
+    {
+      "id": "website-refresh",
+      "title": "Website Refresh",
+      "folder": "Projects",
+      "tags": [
+        "project",
+        "product"
+      ],
+      "content": "# Website Refresh\n\n## Goal\n- Clarify the visual system through [[Design Critique Notes]]\n- Connect launch work to [[Launch Checklist]]\n- Pull messaging from [[Content Strategy]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T11:00:00.000Z",
+      "updatedAt": "2026-03-27T11:00:00.000Z"
+    },
+    {
+      "id": "reading-queue",
+      "title": "Reading Queue",
+      "folder": "Research",
+      "tags": [
+        "reading",
+        "queue"
+      ],
+      "content": "# Reading Queue\n\n- Feed new ideas into [[Learning Roadmap]]\n- Convert highlights into [[Reference Notes]]\n- Promote important themes to [[Maps of Thought]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:45:00.000Z",
+      "updatedAt": "2026-03-27T10:45:00.000Z"
+    },
+    {
+      "id": "open-questions",
+      "title": "Open Questions",
+      "folder": "Research",
+      "tags": [
+        "questions",
+        "research"
+      ],
+      "content": "# Open Questions\n\n- Which notes should become new maps?\n- Where does [[AI Lab Notes]] overlap with [[Systems Design Notes]]?\n- What belongs in [[Knowledge Graph]] versus [[Projects Index]]?",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:40:00.000Z",
+      "updatedAt": "2026-03-27T10:40:00.000Z"
+    },
+    {
+      "id": "inbox",
+      "title": "Inbox",
+      "content": "# Inbox\n\n- Quick capture for ideas\n- Link promising notes into [[Projects Index]]\n- Move evergreen ideas into [[Writing Principles]]",
+      "folder": "Workspace",
+      "tags": [
+        "capture",
+        "inbox"
+      ],
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:25:00.000Z",
+      "updatedAt": "2026-03-27T10:25:00.000Z"
+    },
+    {
+      "id": "maps-of-thought",
+      "title": "Maps of Thought",
+      "folder": "Maps of Content",
+      "tags": [
+        "moc",
+        "thinking"
+      ],
+      "content": "# Maps of Thought\n\n- Bridge [[Writing Principles]] with [[Knowledge Graph]]\n- Track how [[Learning Roadmap]] shapes [[Systems Design Notes]]\n- Connect long-term questions into [[Open Questions]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:20:00.000Z",
+      "updatedAt": "2026-03-27T10:20:00.000Z"
+    },
+    {
+      "id": "knowledge-graph",
+      "title": "Knowledge Graph",
+      "content": "# Knowledge Graph\n\nThe graph reveals clusters, orphan notes, and unresolved links.\n\n## Watch for\n- Notes with many backlinks\n- Ghost links that should become real notes\n- How [[Projects Index]] and [[Writing Principles]] connect",
+      "folder": "Maps of Content",
+      "tags": [
+        "graph",
+        "moc"
+      ],
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:20:00.000Z",
+      "updatedAt": "2026-03-27T10:20:00.000Z"
+    },
+    {
+      "id": "writing-principles",
+      "title": "Writing Principles",
+      "content": "# Writing Principles\n\n## Keep notes useful\n- Write clearly\n- Prefer small connected notes\n- Link to [[Projects Index]] when an idea becomes active\n\n## Build context\n- Summarize before expanding\n- Connect back to [[Welcome to Obsidian Vault]]\n- Capture sparks in [[Inbox]]",
+      "folder": "Workspace",
+      "tags": [
+        "writing",
+        "system"
+      ],
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:15:00.000Z",
+      "updatedAt": "2026-03-27T10:15:00.000Z"
+    },
+    {
+      "id": "focus-system",
+      "title": "Focus System",
+      "folder": "Workspace",
+      "tags": [
+        "focus",
+        "systems"
+      ],
+      "content": "# Focus System\n\n- Weekly goals live in [[Quarter Planning]]\n- Daily execution happens through [[Daily Notes Template]]\n- Review loops connect back to [[Projects Index]]\n- Protect deep work using [[Deep Work Rituals]]",
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:10:00.000Z",
+      "updatedAt": "2026-03-27T10:10:00.000Z"
+    },
+    {
+      "id": "projects-index",
+      "title": "Projects Index",
+      "content": "# Projects Index\n\n- [[Website refresh]]\n- [[Learning roadmap]]\n- [[Content ideas]]\n- [[Knowledge Graph]]",
+      "folder": "Projects",
+      "tags": [
+        "projects",
+        "index"
+      ],
+      "isPinned": false,
+      "status": "active",
+      "createdAt": "2026-03-27T10:10:00.000Z",
+      "updatedAt": "2026-03-27T10:10:00.000Z"
+    },
+    {
+      "id": "daily-notes-template",
+      "title": "Daily Notes Template",
+      "content": "# Daily Notes Template\n\n## Focus\n- [[Projects Index]]\n\n## Notes\n- \n\n## Follow-up\n- Review [[Writing Principles]]",
+      "folder": "Templates",
+      "tags": [
+        "template",
+        "daily"
+      ],
+      "isPinned": false,
+      "status": "draft",
+      "createdAt": "2026-03-27T10:05:00.000Z",
+      "updatedAt": "2026-03-27T10:05:00.000Z"
+    }
+  ]
+}

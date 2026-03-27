@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --background: #f5f7fb;
+  --foreground: #071120;
+  --card: rgba(255, 255, 255, 0.85);
+  --muted: #526074;
+  --grid-line: rgba(15, 23, 42, 0.06);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: #030712;
+  --foreground: #f8fafc;
+  --card: rgba(9, 15, 31, 0.72);
+  --muted: #94a3b8;
+  --grid-line: rgba(148, 163, 184, 0.08);
+}
+
+* {
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+html {
+  scroll-behavior: smooth;
+  background: #020617;
+}
+
+body {
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 24%),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.08), transparent 28%),
+    radial-gradient(circle at 50% 20%, rgba(14, 165, 233, 0.08), transparent 30%),
+    linear-gradient(180deg, #020617 0%, #071120 100%);
+  color: var(--foreground);
+  min-height: 100vh;
+  font-family: "Aptos", "Segoe UI", "Trebuchet MS", sans-serif;
+  overscroll-behavior: none;
+}
+
+.light body {
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.12), transparent 24%),
+    radial-gradient(circle at top right, rgba(249, 115, 22, 0.16), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%);
+}
+
+.light .text-white {
+  color: #071120 !important;
+}
+
+.light .text-slate-400,
+.light .text-slate-300,
+.light .text-slate-200 {
+  color: #4c5b71 !important;
+}
+
+.light .bg-slate-950\/40,
+.light .bg-slate-950\/45,
+.light .bg-slate-950\/50,
+.light .bg-slate-950\/60,
+.light .bg-slate-950\/70,
+.light .bg-slate-950\/95 {
+  background-color: rgba(255, 255, 255, 0.72) !important;
+}
+
+.light .border-white\/8,
+.light .border-white\/10,
+.light .border-white\/12,
+.light .border-white\/15 {
+  border-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.6), rgba(249, 115, 22, 0.6));
+  border-radius: 999px;
+}
+
+.city-grid {
+  background-image:
+    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+  background-size: 72px 72px;
+}
+
+.city-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.city-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 45%);
+}
+
+.city-orb {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+.pulse-line {
+  position: relative;
+  overflow: hidden;
+}
+
+.pulse-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  animation: pulse-scan 5.5s linear infinite;
+}
+
+.ticker-shell {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-track {
+  display: inline-flex;
+  min-width: max-content;
+  gap: 1rem;
+  animation: ticker-scroll 24s linear infinite;
+}
+
+.text-gradient-city {
+  background: linear-gradient(120deg, #f8fafc 0%, #7dd3fc 40%, #fdba74 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.font-\[family-name\:var\(--font-display\)\] {
+  font-family: "Bahnschrift", "Aptos Display", "Trebuchet MS", sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.light .text-gradient-city {
+  background: linear-gradient(120deg, #0f172a 0%, #0369a1 50%, #c2410c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.graph-canvas {
+  cursor: grab;
+  touch-action: none;
+}
+
+.graph-canvas:active {
+  cursor: grabbing;
+}
+
+@media (display-mode: standalone) {
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    padding-top: env(safe-area-inset-top);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+@keyframes graphNodeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes graphEdgeIn {
+  from {
+    opacity: 0;
+    stroke-dashoffset: 32;
+  }
+  to {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes graphFloat {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes pulse-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
