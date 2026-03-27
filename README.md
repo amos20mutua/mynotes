@@ -46,9 +46,15 @@ The app only needs these public variables on the frontend:
 4. Add:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL`
 5. Trigger a new deploy.
 
 After that, the deployed app will keep local device storage and also sync a copy to Supabase.
+
+## Recommended Netlify values
+- `NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>`
+- `NEXT_PUBLIC_SITE_URL=https://<your-netlify-site>.netlify.app`
 
 ## Supabase setup
 Apply the vault migration before connecting the live site:

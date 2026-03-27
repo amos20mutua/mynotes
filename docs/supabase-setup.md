@@ -19,6 +19,7 @@ After you push the web app online:
 3. Add:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL`
 4. Redeploy the site.
 
 ## Storage behavior
@@ -33,3 +34,4 @@ After you push the web app online:
 ## Notes
 - This app does not need the database hardcoded before deployment.
 - Netlify only needs the environment variables after the app is online.
+- Set `NEXT_PUBLIC_SITE_URL` to your Netlify production URL so metadata and install surfaces point at the live app.
