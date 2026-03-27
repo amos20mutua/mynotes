@@ -63,9 +63,9 @@ const HOVER_LINE_COLOR = "#946363";
 
 const clusterPalette = [
   { fill: "#c89a4a", selected: "#efbf72", glow: "rgba(239, 191, 114, 0.24)", edge: "rgba(200, 154, 74, 0.15)", label: "#f4efe6", frontLabel: "#fffaf2" },
-  { fill: "#6f95c4", selected: "#8cb3e2", glow: "rgba(140, 179, 226, 0.2)", edge: "rgba(111, 149, 196, 0.14)", label: "#eef3f9", frontLabel: "#f8fbff" },
+  { fill: "#7f93ad", selected: "#a5b6cb", glow: "rgba(165, 182, 203, 0.2)", edge: "rgba(127, 147, 173, 0.14)", label: "#eef2f6", frontLabel: "#f9fbfd" },
   { fill: "#5e978d", selected: "#7db6aa", glow: "rgba(125, 182, 170, 0.18)", edge: "rgba(94, 151, 141, 0.14)", label: "#e8efec", frontLabel: "#f3faf7" },
-  { fill: "#6886ab", selected: "#87a6cd", glow: "rgba(135, 166, 205, 0.19)", edge: "rgba(104, 134, 171, 0.14)", label: "#edf2f7", frontLabel: "#f9fbff" }
+  { fill: "#75889f", selected: "#9db0c5", glow: "rgba(157, 176, 197, 0.18)", edge: "rgba(117, 136, 159, 0.14)", label: "#edf1f5", frontLabel: "#f9fbfd" }
 ] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -660,7 +660,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 node.id === ROOT_NODE_ID
                   ? { fill: "#d0a156", selected: "#f0c16e", glow: "rgba(240,193,110,0.28)", label: "#f4ede1", frontLabel: "#fff9ef" }
                   : baseNode.type === "ghost"
-                    ? { fill: "#6a8fb8", selected: "#88afd8", glow: "rgba(136,175,216,0.2)", label: "#edf2f7", frontLabel: "#fbfdff" }
+                    ? { fill: "#7c91ab", selected: "#a1b5ce", glow: "rgba(161,181,206,0.2)", label: "#edf1f5", frontLabel: "#fbfdff" }
                     : getClusterColor(baseNode.cluster);
               const selected = node.id === activeNodeId;
               const hovered = node.id === hoveredNodeId;

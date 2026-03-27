@@ -9,8 +9,8 @@
   --grid-line: rgba(15, 23, 42, 0.06);
   --accent-amber: #efbf72;
   --accent-amber-deep: #b9853f;
-  --accent-blue: #89a8cd;
-  --accent-blue-soft: rgba(137, 168, 205, 0.16);
+  --accent-blue: #9aa9bb;
+  --accent-blue-soft: rgba(154, 169, 187, 0.16);
   --danger-deep: #8f4c4c;
   --danger-soft: rgba(143, 76, 76, 0.16);
 }
@@ -24,8 +24,8 @@
   --grid-line: rgba(148, 163, 184, 0.08);
   --accent-amber: #efbf72;
   --accent-amber-deep: #b9853f;
-  --accent-blue: #89a8cd;
-  --accent-blue-soft: rgba(137, 168, 205, 0.16);
+  --accent-blue: #9aa9bb;
+  --accent-blue-soft: rgba(154, 169, 187, 0.16);
   --danger-deep: #8f4c4c;
   --danger-soft: rgba(143, 76, 76, 0.16);
 }

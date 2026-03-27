@@ -11,7 +11,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-white text-slate-950 shadow-[0_10px_30px_rgba(255,255,255,0.16)] hover:-translate-y-0.5 hover:bg-white/92",
-        secondary: "border border-[color:var(--accent-blue-soft)] bg-[color:var(--accent-blue-soft)] text-white backdrop-blur-xl hover:bg-[rgba(137,168,205,0.22)]",
+        secondary: "border border-[color:var(--accent-blue-soft)] bg-[color:var(--accent-blue-soft)] text-white backdrop-blur-xl hover:bg-[rgba(154,169,187,0.22)]",
         ghost: "text-slate-200 hover:bg-white/10",
         accent: "bg-[color:var(--accent-amber)] text-slate-950 shadow-[0_18px_40px_rgba(239,191,114,0.22)] hover:-translate-y-0.5 hover:bg-[#f3c984]",
         destructive: "bg-[color:var(--danger-deep)] text-white shadow-[0_14px_32px_rgba(143,76,76,0.18)] hover:bg-[#a75d5d]"
