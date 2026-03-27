@@ -53,7 +53,6 @@ const VIEWPORT_HEIGHT = 780;
 const DEFAULT_SCALE = 1.12;
 const MIN_SCALE = 0.84;
 const MAX_SCALE = 1.44;
-const SCALE_STEP = 0.05;
 const SPHERE_RADIUS = 320;
 const CAMERA_DISTANCE = 2.45;
 const SPHERE_CENTER_X = VIEWPORT_WIDTH / 2;
@@ -193,6 +192,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   const [rotationX, setRotationX] = useState(-0.18);
   const [rotationY, setRotationY] = useState(0.24);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<DeferredInstallPrompt | null>(null);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [isStandaloneApp, setIsStandaloneApp] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -200,10 +200,19 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
     return window.matchMedia("(display-mode: standalone)").matches || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
   });
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 768px)").matches;
+  });
   const containerRef = useRef<HTMLDivElement | null>(null);
   const draggingRef = useRef(false);
   const pointerRef = useRef<{ x: number; y: number } | null>(null);
   const hoverPauseRef = useRef(false);
+  const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDistanceRef = useRef<number | null>(null);
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node] as const)), [graph.nodes]);
   const adjacency = useMemo(() => buildAdjacency(graph.edges), [graph.edges]);
@@ -217,6 +226,10 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   }, [searchInput]);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const updateMode = () => setIsMobile(mediaQuery.matches);
+    mediaQuery.addEventListener("change", updateMode);
+
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
       setDeferredInstallPrompt(event as DeferredInstallPrompt);
@@ -231,6 +244,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     window.addEventListener("appinstalled", onAppInstalled);
 
     return () => {
+      mediaQuery.removeEventListener("change", updateMode);
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
     };
@@ -426,7 +440,15 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     );
   };
 
-  const zoomPercent = Math.round((scale / DEFAULT_SCALE) * 100);
+  const safeTopStyle = {
+    top: isMobile ? "calc(env(safe-area-inset-top, 0px) + 12px)" : undefined
+  } as const;
+  const installSheetStyle = {
+    bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+  } as const;
+  const mobilePanelStyle = {
+    bottom: "calc(env(safe-area-inset-bottom, 0px) + 16px)"
+  } as const;
 
   const handleInstall = async () => {
     const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
@@ -447,7 +469,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     }
 
     if (isIos) {
-      toast.message("On iPhone, tap Share and choose Add to Home Screen.");
+      setShowInstallHelp(true);
       return;
     }
 
@@ -464,45 +486,35 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_20%,rgba(140,204,251,0.08),transparent_24%),radial-gradient(circle_at_78%_22%,rgba(243,197,118,0.07),transparent_18%),radial-gradient(circle_at_48%_82%,rgba(113,211,190,0.06),transparent_24%)]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:156px_156px]" />
 
-      <div className="absolute inset-x-3 top-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
-        <div className="rounded-[28px] border border-white/10 bg-slate-950/46 px-4 py-3 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+      <div style={safeTopStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
+        <div className="rounded-[22px] border border-white/10 bg-slate-950/40 px-3 py-2.5 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-3 sm:shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:backdrop-blur-2xl">
           <p className="text-[11px] uppercase tracking-[0.28em] text-slate-500">Obsidian Vault</p>
-          <h1 className="mt-1 text-2xl font-semibold text-white">Vault</h1>
+          <h1 className="mt-1 text-lg font-semibold text-white sm:text-2xl">Vault</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {!isStandaloneApp ? (
             <button
               type="button"
               onClick={() => {
                 void handleInstall();
               }}
-              className="rounded-full border border-white/10 bg-slate-950/46 px-4 py-2 text-sm font-medium text-slate-100 shadow-[0_20px_60px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition hover:bg-white/8"
+              className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-100 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:bg-white/8 sm:px-4 sm:text-sm sm:backdrop-blur-2xl"
             >
-              Install app
+              Install
             </button>
           ) : null}
 
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/46 px-3 py-2 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl">
+          <div className="flex min-w-0 items-center gap-2 rounded-full border border-white/10 bg-slate-950/40 px-3 py-2 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl sm:shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:backdrop-blur-2xl">
             <Search className="size-4 text-slate-500" />
             <Input
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Search notes"
-              className="h-auto min-w-[120px] border-0 bg-transparent px-0 py-0 text-sm focus:border-0 sm:min-w-[200px]"
+              className="h-auto min-w-[92px] border-0 bg-transparent px-0 py-0 text-sm focus:border-0 sm:min-w-[200px]"
             />
           </div>
         </div>
-      </div>
-
-      <div className="absolute right-3 top-20 z-20 flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/46 px-3 py-2 text-[11px] uppercase tracking-[0.22em] text-slate-400 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl sm:right-5 sm:top-24">
-        <button type="button" onClick={() => setScale((value) => clamp(Number((value - SCALE_STEP).toFixed(2)), MIN_SCALE, MAX_SCALE))} className="text-slate-300 transition hover:text-white">
-          -
-        </button>
-        <span>{zoomPercent}%</span>
-        <button type="button" onClick={() => setScale((value) => clamp(Number((value + SCALE_STEP).toFixed(2)), MIN_SCALE, MAX_SCALE))} className="text-slate-300 transition hover:text-white">
-          +
-        </button>
       </div>
 
       <div
@@ -518,11 +530,35 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
           viewBox={`0 0 ${VIEWPORT_WIDTH} ${VIEWPORT_HEIGHT}`}
           className="h-full w-full"
           onPointerDown={(event) => {
-            draggingRef.current = true;
-            pointerRef.current = { x: event.clientX, y: event.clientY };
+            activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            if (activePointersRef.current.size === 1) {
+              draggingRef.current = true;
+              pointerRef.current = { x: event.clientX, y: event.clientY };
+            } else if (activePointersRef.current.size === 2) {
+              draggingRef.current = false;
+              const points = Array.from(activePointersRef.current.values());
+              pinchDistanceRef.current = Math.hypot(points[0]!.x - points[1]!.x, points[0]!.y - points[1]!.y);
+            }
             event.currentTarget.setPointerCapture(event.pointerId);
           }}
           onPointerMove={(event) => {
+            if (activePointersRef.current.has(event.pointerId)) {
+              activePointersRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+            }
+
+            if (activePointersRef.current.size === 2) {
+              const points = Array.from(activePointersRef.current.values());
+              const distance = Math.hypot(points[0]!.x - points[1]!.x, points[0]!.y - points[1]!.y);
+
+              if (pinchDistanceRef.current !== null) {
+                const delta = clamp((distance - pinchDistanceRef.current) / 280, -0.08, 0.08);
+                setScale((value) => clamp(Number((value + delta).toFixed(3)), MIN_SCALE, MAX_SCALE));
+              }
+
+              pinchDistanceRef.current = distance;
+              return;
+            }
+
             if (!draggingRef.current || !pointerRef.current) {
               return;
             }
@@ -535,8 +571,18 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             setRotationX((value) => clamp(value + deltaY * 0.0042, -0.78, 0.78));
           }}
           onPointerUp={(event) => {
-            draggingRef.current = false;
-            pointerRef.current = null;
+            activePointersRef.current.delete(event.pointerId);
+            if (activePointersRef.current.size < 2) {
+              pinchDistanceRef.current = null;
+            }
+            if (activePointersRef.current.size === 0) {
+              draggingRef.current = false;
+              pointerRef.current = null;
+            } else if (activePointersRef.current.size === 1) {
+              const remaining = Array.from(activePointersRef.current.values())[0] ?? null;
+              draggingRef.current = true;
+              pointerRef.current = remaining;
+            }
             event.currentTarget.releasePointerCapture(event.pointerId);
           }}
           onPointerLeave={() => {
@@ -640,14 +686,17 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
         </svg>
       </div>
 
-      <div className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2">
+      <div
+        style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 104px)" } : undefined}
+        className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
+      >
         <button
           type="button"
           onClick={() => {
             const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
             openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
           }}
-          className="rounded-full border border-white/10 bg-slate-950/52 px-5 py-3 text-sm font-medium text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-slate-950/80"
+          className="rounded-full border border-white/10 bg-slate-950/58 px-5 py-3 text-sm font-medium text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-slate-950/80"
         >
           <span className="inline-flex items-center gap-2">
             <Plus className="size-4" />
@@ -657,17 +706,20 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       </div>
 
       {previewNode ? (
-        <div className="absolute inset-x-3 bottom-3 z-20 rounded-[24px] border border-white/10 bg-slate-950/52 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-2xl md:inset-x-auto md:bottom-4 md:left-4 md:w-[300px]">
+        <div
+          style={isMobile ? mobilePanelStyle : undefined}
+          className="absolute inset-x-3 z-20 rounded-[24px] border border-white/10 bg-slate-950/50 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.24)] backdrop-blur-xl max-sm:max-h-[28vh] max-sm:overflow-y-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[300px] md:backdrop-blur-2xl"
+        >
           <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
             {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
           </p>
-          <h2 className="mt-2 text-2xl font-semibold leading-tight text-white">{previewNode.label}</h2>
+          <h2 className="mt-2 text-xl font-semibold leading-tight text-white sm:text-2xl">{previewNode.label}</h2>
 
           <p className="mt-3 text-sm leading-7 text-slate-300">
             {previewNode.id === ROOT_NODE_ID
               ? "The vault core anchors the network and helps you move into nearby notes."
               : previewNote
-                ? shortExcerpt(previewNote.content)
+                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 80) : shortExcerpt(previewNote.content))
                 : "This linked idea has not been expanded into a full note yet."}
           </p>
 
@@ -675,7 +727,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             <div className="mt-4">
               <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">Connected notes</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
+                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 3 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 3 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -714,6 +766,22 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 </span>
               </button>
             ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showInstallHelp ? (
+        <div style={installSheetStyle} className="absolute inset-x-3 z-30 sm:hidden">
+          <div className="rounded-[24px] border border-white/10 bg-slate-950/92 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Install on iPhone</p>
+                <p className="mt-2 text-sm leading-6 text-slate-100">Tap the Share button in Safari, then choose <span className="font-medium text-white">Add to Home Screen</span>.</p>
+              </div>
+              <button type="button" onClick={() => setShowInstallHelp(false)} className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-slate-300 transition hover:bg-white/8">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
