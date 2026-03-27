@@ -168,6 +168,24 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }, [activeView]);
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const shouldLockScroll = activeView === "vault";
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = shouldLockScroll ? "hidden" : "";
+    document.documentElement.style.overflow = shouldLockScroll ? "hidden" : "";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [activeView]);
+
+  useEffect(() => {
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
@@ -269,7 +287,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
   if (activeView === "vault") {
     return (
-      <div className="mx-auto max-w-[1800px] px-2 py-3 sm:px-3 lg:px-4">
+      <div className="mx-auto h-dvh max-w-[1800px] overflow-hidden px-0 py-0 sm:px-3 sm:py-3 lg:px-4">
         <GraphErrorBoundary
           fallback={
             <Card className="flex min-h-[70vh] flex-col items-center justify-center gap-4 p-8 text-center">

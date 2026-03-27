@@ -62,10 +62,10 @@ const ACTIVE_LINE_COLOR = "#b36a67";
 const HOVER_LINE_COLOR = "#946363";
 
 const clusterPalette = [
-  { fill: "#c89a4a", selected: "#efbf72", glow: "rgba(239, 191, 114, 0.24)", edge: "rgba(118, 134, 164, 0.16)", label: "#f4efe6", frontLabel: "#fffaf2" },
-  { fill: "#6f95c4", selected: "#8cb3e2", glow: "rgba(140, 179, 226, 0.2)", edge: "rgba(118, 134, 164, 0.16)", label: "#eef3f9", frontLabel: "#f8fbff" },
-  { fill: "#5e978d", selected: "#7db6aa", glow: "rgba(125, 182, 170, 0.18)", edge: "rgba(118, 134, 164, 0.16)", label: "#e8efec", frontLabel: "#f3faf7" },
-  { fill: "#6886ab", selected: "#87a6cd", glow: "rgba(135, 166, 205, 0.19)", edge: "rgba(118, 134, 164, 0.16)", label: "#edf2f7", frontLabel: "#f9fbff" }
+  { fill: "#c89a4a", selected: "#efbf72", glow: "rgba(239, 191, 114, 0.24)", edge: "rgba(200, 154, 74, 0.15)", label: "#f4efe6", frontLabel: "#fffaf2" },
+  { fill: "#6f95c4", selected: "#8cb3e2", glow: "rgba(140, 179, 226, 0.2)", edge: "rgba(111, 149, 196, 0.14)", label: "#eef3f9", frontLabel: "#f8fbff" },
+  { fill: "#5e978d", selected: "#7db6aa", glow: "rgba(125, 182, 170, 0.18)", edge: "rgba(94, 151, 141, 0.14)", label: "#e8efec", frontLabel: "#f3faf7" },
+  { fill: "#6886ab", selected: "#87a6cd", glow: "rgba(135, 166, 205, 0.19)", edge: "rgba(104, 134, 171, 0.14)", label: "#edf2f7", frontLabel: "#f9fbff" }
 ] as const;
 
 function clamp(value: number, min: number, max: number) {
@@ -85,6 +85,10 @@ function getClusterColor(cluster: string) {
 function shortExcerpt(content: string) {
   const compact = content.replace(/^#.*$/gm, "").replace(/\[\[([^\]]+)\]\]/g, "$1").replace(/\s+/g, " ").trim();
   return compact ? compact.slice(0, 120) : "Empty note.";
+}
+
+function truncateLabel(value: string, length: number) {
+  return value.length > length ? `${value.slice(0, Math.max(0, length - 3))}...` : value;
 }
 
 function buildAdjacency(edges: { source: string; target: string }[]) {
@@ -501,7 +505,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 onClick={() => setShowInstallHelp(false)}
                 className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/6 text-sm text-slate-200 transition hover:bg-white/10"
               >
-                ×
+                x
               </button>
             </div>
           </div>
@@ -640,7 +644,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               }
 
               const stroke = highlighted ? (activeDepth <= 1 ? ACTIVE_LINE_COLOR : HOVER_LINE_COLOR) : palette.edge;
-              const opacity = highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.015 + frontFactor * 0.045;
+              const opacity = highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.018 + frontFactor * 0.05;
               const width = highlighted ? (activeDepth <= 1 ? 1.85 : 1.02) : 0.42;
 
               return <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />;
@@ -707,79 +711,78 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
         </svg>
       </div>
 
-      <div
-        style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 118px)" } : undefined}
-        className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
-      >
-        <button
-          type="button"
-          onClick={() => {
-            const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-            openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
-          }}
-          className="rounded-full border border-white/10 bg-slate-950/58 px-5 py-3 text-sm font-medium text-slate-100 shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-slate-950/80"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Plus className="size-4" />
-            New note
-          </span>
-        </button>
-      </div>
-
       {previewNode ? (
         <div
           style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
-          className="absolute inset-x-3 z-20 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl max-sm:inset-x-auto max-sm:max-h-[18vh] max-sm:min-h-[132px] max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:p-3.5 md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
+          className="absolute inset-x-3 z-20 flex flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(239,191,114,0.08)] backdrop-blur-xl max-sm:inset-x-auto max-sm:max-h-[18vh] max-sm:min-h-[132px] max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:p-3.5 md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
         >
-          <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
-            {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
-          </p>
-          <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white max-sm:text-[1.1rem] sm:text-2xl">{previewNode.label}</h2>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
+              {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
+            </p>
+            <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white max-sm:text-[1.1rem] sm:text-2xl">{previewNode.label}</h2>
 
-          <p className="mt-4 text-[15px] leading-8 text-slate-300 max-sm:mt-2 max-sm:text-[12px] max-sm:leading-5">
-            {previewNode.id === ROOT_NODE_ID
-              ? "The vault core anchors the network and helps you move into nearby notes."
-              : previewNote
-                ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 48) : shortExcerpt(previewNote.content))
-                : "This linked idea has not been expanded into a full note yet."}
-          </p>
+            <p className="mt-4 text-[15px] leading-8 text-slate-300 max-sm:mt-2 max-sm:text-[12px] max-sm:leading-5">
+              {previewNode.id === ROOT_NODE_ID
+                ? "The vault core anchors the network and helps you move into nearby notes."
+                : previewNote
+                  ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 48) : shortExcerpt(previewNote.content))
+                  : "This linked idea has not been expanded into a full note yet."}
+            </p>
 
-          {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
-            <div className="mt-4 max-sm:mt-2">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 max-sm:text-[9px]">Connected notes</p>
-              <div className="mt-3 flex flex-wrap gap-2 max-sm:mt-2">
-                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 2 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 2 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => handleNodeClick(item.nodeId)}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
-                  >
-                    {item.title}
-                  </button>
-                ))}
+            {isMobile ? (
+              <div className="mt-2 flex items-center justify-between gap-2">
+                <p className="min-w-0 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length) > 0
+                    ? `${previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length} linked`
+                    : "No links"}
+                </p>
+                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
+                  <div className="min-w-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-slate-200">
+                    {truncateLabel(
+                      previewNode.id === ROOT_NODE_ID ? connectedGraphNodes[0]?.label ?? "" : connectedNotes[0]?.title ?? "",
+                      18
+                    )}
+                  </div>
+                ) : null}
               </div>
-            </div>
-          ) : null}
+            ) : (previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
+              <div className="mt-4 max-sm:mt-2">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 max-sm:text-[9px]">Connected notes</p>
+                <div className="mt-3 flex flex-wrap gap-2 max-sm:mt-2">
+                  {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 2 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 2 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleNodeClick(item.nodeId)}
+                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                    >
+                      {item.title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 max-sm:mt-2">
+          <div className="mt-auto flex flex-wrap gap-2 pt-3 max-sm:pt-2">
             <button
               type="button"
               onClick={handlePanelOpen}
-              className="rounded-full border border-cyan-300/18 bg-cyan-300/10 px-3 py-1.5 text-xs text-cyan-100 transition hover:bg-cyan-300/20 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+              className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.14)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.22)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
             >
               <span className="inline-flex items-center gap-1.5">
                 <ArrowLeft className="size-3.5" />
                 {isMobile ? "Open" : "Open note"}
               </span>
             </button>
-            {previewNote ? (
+            {previewNote && !isMobile ? (
               <button
                 type="button"
                 onClick={() => {
                   void onDeleteNote(previewNote.id);
                 }}
-                className="rounded-full border border-red-400/18 bg-red-400/10 px-3 py-1.5 text-xs text-red-100 transition hover:bg-red-400/20 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                className="rounded-full border border-[rgba(143,76,76,0.28)] bg-[rgba(143,76,76,0.16)] px-3 py-1.5 text-xs text-[#f6e8e8] transition hover:bg-[rgba(143,76,76,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Trash2 className="size-3.5" />
@@ -788,8 +791,43 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               </button>
             ) : null}
           </div>
+
+          <div className="mt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+                openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
+              }}
+              className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-4 py-2 text-xs font-medium text-[#fff4de] shadow-[0_16px_40px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Plus className="size-3.5" />
+                New note
+              </span>
+            </button>
+          </div>
         </div>
-      ) : null}
+      ) : (
+        <div
+          style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)" } : undefined}
+          className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+              openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
+            }}
+            className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus className="size-4" />
+              New note
+            </span>
+          </button>
+        </div>
+      )}
 
       {composer ? (
         <div
@@ -848,3 +886,4 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     </section>
   );
 }
+

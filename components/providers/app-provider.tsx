@@ -12,10 +12,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       {children}
       <Toaster
         richColors
-        closeButton
+        closeButton={false}
         position="top-right"
         toastOptions={{
-          className: "border border-white/12 !bg-slate-950/95 !text-white backdrop-blur-xl"
+          className: "border border-white/10 !bg-slate-950/94 !text-white px-3 py-2 text-xs shadow-[0_16px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl"
         }}
       />
     </ThemeProvider>

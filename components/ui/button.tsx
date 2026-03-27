@@ -6,15 +6,15 @@ import { Slot } from "@radix-ui/react-slot";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-cyan-400/70",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-semibold transition-all duration-300 disabled:pointer-events-none disabled:opacity-50 outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-[color:var(--accent-blue)]/70",
   {
     variants: {
       variant: {
-        default: "bg-white text-slate-950 shadow-[0_10px_30px_rgba(255,255,255,0.18)] hover:-translate-y-0.5 hover:bg-white/90",
-        secondary: "border border-white/15 bg-white/8 text-white backdrop-blur-xl hover:bg-white/14",
+        default: "bg-white text-slate-950 shadow-[0_10px_30px_rgba(255,255,255,0.16)] hover:-translate-y-0.5 hover:bg-white/92",
+        secondary: "border border-[color:var(--accent-blue-soft)] bg-[color:var(--accent-blue-soft)] text-white backdrop-blur-xl hover:bg-[rgba(137,168,205,0.22)]",
         ghost: "text-slate-200 hover:bg-white/10",
-        accent: "bg-gradient-to-r from-cyan-300 to-orange-300 text-slate-950 shadow-[0_18px_40px_rgba(34,211,238,0.2)] hover:-translate-y-0.5",
-        destructive: "bg-rose-500 text-white hover:bg-rose-400"
+        accent: "bg-[color:var(--accent-amber)] text-slate-950 shadow-[0_18px_40px_rgba(239,191,114,0.22)] hover:-translate-y-0.5 hover:bg-[#f3c984]",
+        destructive: "bg-[color:var(--danger-deep)] text-white shadow-[0_14px_32px_rgba(143,76,76,0.18)] hover:bg-[#a75d5d]"
       },
       size: {
         default: "h-11 px-5",

@@ -7,6 +7,12 @@
   --card: rgba(255, 255, 255, 0.85);
   --muted: #526074;
   --grid-line: rgba(15, 23, 42, 0.06);
+  --accent-amber: #efbf72;
+  --accent-amber-deep: #b9853f;
+  --accent-blue: #89a8cd;
+  --accent-blue-soft: rgba(137, 168, 205, 0.16);
+  --danger-deep: #8f4c4c;
+  --danger-soft: rgba(143, 76, 76, 0.16);
 }
 
 .dark {
@@ -16,6 +22,12 @@
   --card: rgba(9, 15, 31, 0.72);
   --muted: #94a3b8;
   --grid-line: rgba(148, 163, 184, 0.08);
+  --accent-amber: #efbf72;
+  --accent-amber-deep: #b9853f;
+  --accent-blue: #89a8cd;
+  --accent-blue-soft: rgba(137, 168, 205, 0.16);
+  --danger-deep: #8f4c4c;
+  --danger-soft: rgba(143, 76, 76, 0.16);
 }
 
 * {
@@ -52,6 +64,7 @@ select {
 
 textarea {
   field-sizing: content;
+  caret-color: var(--accent-amber);
 }
 
 .light body {
