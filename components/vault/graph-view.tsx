@@ -714,82 +714,84 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       {previewNode ? (
         <div
           style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
-          className="absolute inset-x-3 z-20 flex flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(239,191,114,0.08)] backdrop-blur-xl max-sm:inset-x-auto max-sm:max-h-[18vh] max-sm:min-h-[132px] max-sm:overflow-hidden max-sm:rounded-[24px] max-sm:p-3.5 md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px] md:backdrop-blur-2xl"
+          className="absolute inset-x-3 z-20 flex flex-col items-center max-sm:inset-x-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px]"
         >
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
-              {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
-            </p>
-            <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white max-sm:text-[1.1rem] sm:text-2xl">{previewNode.label}</h2>
+          <div className="flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(239,191,114,0.08)] backdrop-blur-xl max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:p-3.5 md:backdrop-blur-2xl">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
+                {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
+              </p>
+              <h2 className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-white max-sm:text-[1.1rem] sm:text-2xl">{previewNode.label}</h2>
 
-            <p className="mt-4 text-[15px] leading-8 text-slate-300 max-sm:mt-2 max-sm:text-[12px] max-sm:leading-5">
-              {previewNode.id === ROOT_NODE_ID
-                ? "The vault core anchors the network and helps you move into nearby notes."
-                : previewNote
-                  ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 48) : shortExcerpt(previewNote.content))
-                  : "This linked idea has not been expanded into a full note yet."}
-            </p>
+              <p className="mt-4 text-[15px] leading-8 text-slate-300 max-sm:mt-2 max-sm:text-[12px] max-sm:leading-5">
+                {previewNode.id === ROOT_NODE_ID
+                  ? "The vault core anchors the network and helps you move into nearby notes."
+                  : previewNote
+                    ? (isMobile ? shortExcerpt(previewNote.content).slice(0, 48) : shortExcerpt(previewNote.content))
+                    : "This linked idea has not been expanded into a full note yet."}
+              </p>
 
-            {isMobile ? (
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <p className="min-w-0 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                  {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length) > 0
-                    ? `${previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length} linked`
-                    : "No links"}
-                </p>
-                {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
-                  <div className="min-w-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-slate-200">
-                    {truncateLabel(
-                      previewNode.id === ROOT_NODE_ID ? connectedGraphNodes[0]?.label ?? "" : connectedNotes[0]?.title ?? "",
-                      18
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : (previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
-              <div className="mt-4 max-sm:mt-2">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 max-sm:text-[9px]">Connected notes</p>
-                <div className="mt-3 flex flex-wrap gap-2 max-sm:mt-2">
-                  {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 2 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 2 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleNodeClick(item.nodeId)}
-                      className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
-                    >
-                      {item.title}
-                    </button>
-                  ))}
+              {isMobile ? (
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="min-w-0 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                    {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length) > 0
+                      ? `${previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length : connectedNotes.length} linked`
+                      : "No links"}
+                  </p>
+                  {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
+                    <div className="min-w-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] text-slate-200">
+                      {truncateLabel(
+                        previewNode.id === ROOT_NODE_ID ? connectedGraphNodes[0]?.label ?? "" : connectedNotes[0]?.title ?? "",
+                        18
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            ) : null}
-          </div>
+              ) : (previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.length > 0 : connectedNotes.length > 0) ? (
+                <div className="mt-4 max-sm:mt-2">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500 max-sm:text-[9px]">Connected notes</p>
+                  <div className="mt-3 flex flex-wrap gap-2 max-sm:mt-2">
+                    {(previewNode.id === ROOT_NODE_ID ? connectedGraphNodes.slice(0, isMobile ? 2 : 4).map((node) => ({ id: node.id, title: node.label, nodeId: node.id })) : connectedNotes.slice(0, isMobile ? 2 : 4).map((note) => ({ id: note.id, title: note.title, nodeId: `note:${note.id}` }))).map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleNodeClick(item.nodeId)}
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                      >
+                        {item.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
-          <div className="mt-auto flex flex-wrap gap-2 pt-3 max-sm:pt-2">
-            <button
-              type="button"
-              onClick={handlePanelOpen}
-              className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.14)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.22)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ArrowLeft className="size-3.5" />
-                {isMobile ? "Open" : "Open note"}
-              </span>
-            </button>
-            {previewNote && !isMobile ? (
+            <div className="mt-auto flex flex-wrap gap-2 pt-3 max-sm:pt-2">
               <button
                 type="button"
-                onClick={() => {
-                  void onDeleteNote(previewNote.id);
-                }}
-                className="rounded-full border border-[rgba(143,76,76,0.28)] bg-[rgba(143,76,76,0.16)] px-3 py-1.5 text-xs text-[#f6e8e8] transition hover:bg-[rgba(143,76,76,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                onClick={handlePanelOpen}
+                className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.14)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.22)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
               >
                 <span className="inline-flex items-center gap-1.5">
-                  <Trash2 className="size-3.5" />
-                  {isMobile ? "Del" : "Delete"}
+                  <ArrowLeft className="size-3.5" />
+                  {isMobile ? "Open" : "Open note"}
                 </span>
               </button>
-            ) : null}
+              {previewNote && !isMobile ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    void onDeleteNote(previewNote.id);
+                  }}
+                  className="rounded-full border border-[rgba(143,76,76,0.28)] bg-[rgba(143,76,76,0.16)] px-3 py-1.5 text-xs text-[#f6e8e8] transition hover:bg-[rgba(143,76,76,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <Trash2 className="size-3.5" />
+                    {isMobile ? "Del" : "Delete"}
+                  </span>
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <div className="mt-2 flex justify-center">

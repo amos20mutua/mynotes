@@ -17,7 +17,8 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle at 30% 24%, rgba(122, 162, 247, 0.18), transparent 34%), radial-gradient(circle at 72% 70%, rgba(238, 187, 92, 0.14), transparent 30%), #090c14"
+          background:
+            "radial-gradient(circle at 30% 24%, rgba(127,156,182,0.18), transparent 34%), radial-gradient(circle at 74% 24%, rgba(114,168,155,0.14), transparent 26%), radial-gradient(circle at 50% 88%, rgba(239,191,111,0.14), transparent 24%), #090c14"
         }}
       >
         <div
@@ -35,21 +36,44 @@ export default function AppleIcon() {
         >
           <div
             style={{
-              width: 72,
-              height: 72,
+              width: 84,
+              height: 84,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: 999,
-              border: "2px solid rgba(177, 208, 232, 0.34)",
-              position: "relative"
+              borderRadius: 26,
+              border: "1px solid rgba(255,255,255,0.06)",
+              position: "relative",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))"
             }}
           >
             <div
               style={{
                 position: "absolute",
-                left: 32,
-                top: -4,
+                left: 12,
+                top: 10,
+                width: 12,
+                height: 12,
+                borderRadius: 999,
+                background: "#7f9cb6"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                right: 13,
+                top: 14,
+                width: 9,
+                height: 9,
+                borderRadius: 999,
+                background: "#72a89b"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 36,
+                bottom: 8,
                 width: 10,
                 height: 10,
                 borderRadius: 999,
@@ -59,47 +83,53 @@ export default function AppleIcon() {
             <div
               style={{
                 position: "absolute",
-                right: 8,
-                top: 24,
-                width: 9,
-                height: 9,
-                borderRadius: 999,
-                background: "#8ab9d6"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 12,
-                bottom: 12,
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: "#73b5a8"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 36,
-                top: 3,
-                width: 2,
-                height: 30,
-                transform: "rotate(28deg)",
-                transformOrigin: "top center",
-                background: "rgba(239,191,111,0.45)"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 16,
-                top: 45,
-                width: 38,
-                height: 2,
-                transform: "rotate(-18deg)",
+                left: 18,
+                top: 17,
+                width: 48,
+                height: 4,
+                transform: "rotate(63deg)",
                 transformOrigin: "left center",
-                background: "rgba(138,185,214,0.34)"
+                borderRadius: 999,
+                background: "rgba(138,163,185,0.28)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 42,
+                top: 58,
+                width: 28,
+                height: 4,
+                transform: "rotate(-55deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "rgba(138,163,185,0.28)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 21,
+                top: 16,
+                width: 31,
+                height: 8,
+                transform: "rotate(62deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, #f5d38a, #d9a64d)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 39,
+                top: 56,
+                width: 26,
+                height: 8,
+                transform: "rotate(-57deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, #efbf6f, #d9a64d)"
               }}
             />
           </div>

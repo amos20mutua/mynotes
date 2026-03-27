@@ -17,7 +17,8 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle at 30% 24%, rgba(122, 162, 247, 0.22), transparent 34%), radial-gradient(circle at 72% 70%, rgba(238, 187, 92, 0.18), transparent 30%), #090c14"
+          background:
+            "radial-gradient(circle at 30% 24%, rgba(127,156,182,0.22), transparent 34%), radial-gradient(circle at 74% 24%, rgba(114,168,155,0.16), transparent 26%), radial-gradient(circle at 50% 88%, rgba(239,191,111,0.16), transparent 24%), #090c14"
         }}
       >
         <div
@@ -43,89 +44,108 @@ export default function Icon() {
               background: "linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))"
             }}
           />
+
           <div
             style={{
               position: "relative",
-              width: 176,
-              height: 176,
+              width: 196,
+              height: 196,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: 999,
-              border: "2px solid rgba(177, 208, 232, 0.38)",
+              borderRadius: 56,
+              border: "1px solid rgba(255,255,255,0.06)",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.025), rgba(255,255,255,0.01))",
               boxShadow: "0 0 0 1px rgba(255,255,255,0.02) inset"
             }}
           >
             <div
               style={{
                 position: "absolute",
-                left: 86,
-                top: -6,
-                width: 18,
-                height: 18,
+                left: 30,
+                top: 28,
+                width: 26,
+                height: 26,
+                borderRadius: 999,
+                background: "#7f9cb6",
+                boxShadow: "0 0 24px rgba(127,156,182,0.32)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                right: 34,
+                top: 34,
+                width: 20,
+                height: 20,
+                borderRadius: 999,
+                background: "#72a89b",
+                boxShadow: "0 0 20px rgba(114,168,155,0.28)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 92,
+                bottom: 22,
+                width: 22,
+                height: 22,
                 borderRadius: 999,
                 background: "#efbf6f",
-                boxShadow: "0 0 24px rgba(239,191,111,0.45)"
+                boxShadow: "0 0 18px rgba(239,191,111,0.38)"
               }}
             />
+
             <div
               style={{
                 position: "absolute",
-                right: 18,
-                top: 54,
-                width: 16,
-                height: 16,
-                borderRadius: 999,
-                background: "#8ab9d6",
-                boxShadow: "0 0 20px rgba(138,185,214,0.38)"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 28,
-                bottom: 34,
-                width: 14,
-                height: 14,
-                borderRadius: 999,
-                background: "#73b5a8",
-                boxShadow: "0 0 18px rgba(115,181,168,0.34)"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 95,
-                top: 12,
-                width: 2,
-                height: 72,
-                transform: "rotate(28deg)",
-                transformOrigin: "top center",
-                background: "rgba(239,191,111,0.5)"
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 46,
-                top: 112,
-                width: 94,
-                height: 2,
-                transform: "rotate(-18deg)",
+                left: 43,
+                top: 39,
+                width: 114,
+                height: 8,
+                transform: "rotate(63deg)",
                 transformOrigin: "left center",
-                background: "rgba(138,185,214,0.34)"
+                borderRadius: 999,
+                background: "rgba(138,163,185,0.28)"
               }}
             />
             <div
               style={{
                 position: "absolute",
-                left: 36,
-                top: 88,
-                width: 2,
-                height: 54,
-                transform: "rotate(26deg)",
-                transformOrigin: "top center",
-                background: "rgba(115,181,168,0.34)"
+                left: 101,
+                top: 143,
+                width: 72,
+                height: 8,
+                transform: "rotate(-55deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "rgba(138,163,185,0.28)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 52,
+                top: 36,
+                width: 72,
+                height: 14,
+                transform: "rotate(62deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, #f5d38a, #d9a64d)"
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: 97,
+                top: 137,
+                width: 60,
+                height: 14,
+                transform: "rotate(-57deg)",
+                transformOrigin: "left center",
+                borderRadius: 999,
+                background: "linear-gradient(90deg, #efbf6f, #d9a64d)"
               }}
             />
           </div>

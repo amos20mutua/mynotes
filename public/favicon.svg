@@ -1,19 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Vault icon">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Vault favicon">
   <defs>
-    <linearGradient id="vault-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="vault-favicon-bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#0d1324" />
       <stop offset="100%" stop-color="#070b14" />
     </linearGradient>
-    <linearGradient id="vault-v" x1="20%" y1="8%" x2="82%" y2="100%">
+    <linearGradient id="vault-favicon-v" x1="20%" y1="8%" x2="82%" y2="100%">
       <stop offset="0%" stop-color="#f5d38a" />
       <stop offset="100%" stop-color="#d9a64d" />
     </linearGradient>
   </defs>
-  <rect width="256" height="256" rx="56" fill="url(#vault-bg)" />
+  <rect width="256" height="256" rx="56" fill="url(#vault-favicon-bg)" />
   <rect x="16" y="16" width="224" height="224" rx="44" fill="none" stroke="rgba(255,255,255,0.08)" />
   <circle cx="74" cy="72" r="20" fill="#7f9cb6" opacity="0.9" />
   <circle cx="188" cy="78" r="14" fill="#72a89b" opacity="0.82" />
   <path d="M74 72 128 176 188 78" fill="none" stroke="rgba(138,163,185,0.32)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M84 70 128 156 178 70" fill="none" stroke="url(#vault-v)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M84 70 128 156 178 70" fill="none" stroke="url(#vault-favicon-v)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
   <circle cx="128" cy="176" r="11" fill="#efbf6f" />
 </svg>

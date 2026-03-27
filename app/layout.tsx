@@ -14,9 +14,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   manifest: "/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/icon", sizes: "512x512", type: "image/png" }],
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon", sizes: "512x512", type: "image/png" }
+    ],
     apple: [{ url: "/apple-icon", sizes: "180x180", type: "image/png" }],
-    shortcut: ["/icon"]
+    shortcut: ["/favicon.svg"]
   },
   appleWebApp: {
     capable: true,
