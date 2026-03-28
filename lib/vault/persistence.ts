@@ -1,12 +1,17 @@
 import { defaultVaultData } from "@/lib/vault/default-vault";
 import { normalizeTitle, parseWikiLinks } from "@/lib/vault/graph";
-import type { VaultData, VaultLink, VaultNote, VaultNoteClusterMode, VaultNoteSnapshot } from "@/types";
+import type { VaultData, VaultLink, VaultNote, VaultNoteClusterMode, VaultNoteSnapshot, VaultNoteVisibility } from "@/types";
 
 export type SupabaseNoteRow = {
   id: string;
   title: string;
   content: string;
   color_group: string | null;
+  folder: string | null;
+  tags: string[] | null;
+  cluster_mode: VaultNoteClusterMode | null;
+  visibility: VaultNoteVisibility | null;
+  public_topics: string[] | null;
   x: number | null;
   y: number | null;
   z: number | null;
@@ -65,6 +70,11 @@ function normalizeSnapshots(note: VaultNote): VaultNoteSnapshot[] | undefined {
   return snapshots.length ? snapshots : undefined;
 }
 
+function normalizeStringList(values?: string[]) {
+  const normalized = Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)));
+  return normalized.length ? normalized : undefined;
+}
+
 export function normalizeVaultNote(note: VaultNote): VaultNote {
   return {
     ...note,
@@ -74,6 +84,8 @@ export function normalizeVaultNote(note: VaultNote): VaultNote {
     folder: note.folder?.trim() || note.colorGroup?.trim() || "Vault",
     tags: Array.from(new Set((note.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
     clusterMode: note.clusterMode ?? inferClusterMode(note),
+    visibility: note.visibility === "public" ? "public" : "private",
+    publicTopics: normalizeStringList(note.publicTopics),
     isPinned: note.isPinned ?? false,
     status: note.status ?? "active",
     schedule:
@@ -190,6 +202,11 @@ export function noteToSupabaseRow(note: VaultNote): SupabaseNoteRow {
     title: normalized.title,
     content: normalized.content,
     color_group: normalized.colorGroup,
+    folder: normalized.folder ?? null,
+    tags: normalized.tags ?? null,
+    cluster_mode: normalized.clusterMode ?? null,
+    visibility: normalized.visibility ?? "private",
+    public_topics: normalized.publicTopics ?? null,
     x: normalized.graphPosition?.x ?? null,
     y: normalized.graphPosition?.y ?? null,
     z: normalized.graphPosition?.z ?? null,
@@ -204,7 +221,11 @@ export function supabaseRowToNote(row: SupabaseNoteRow): VaultNote {
     title: row.title,
     content: row.content,
     colorGroup: row.color_group ?? "Vault",
-    folder: row.color_group ?? "Vault",
+    folder: row.folder ?? row.color_group ?? "Vault",
+    tags: row.tags ?? [],
+    clusterMode: row.cluster_mode ?? undefined,
+    visibility: row.visibility ?? "private",
+    publicTopics: row.public_topics ?? [],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     graphPosition:

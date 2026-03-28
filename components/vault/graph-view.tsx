@@ -11,9 +11,11 @@ import type { VaultLink, VaultNote, VaultNoteClusterMode } from "@/types";
 type GraphViewProps = {
   notes: VaultNote[];
   links: VaultLink[];
+  mode: "public" | "private";
   selectedNote: VaultNote | null;
   selectedClusterMode: "all" | VaultNoteClusterMode;
   onSelectClusterMode: (mode: "all" | VaultNoteClusterMode) => void;
+  onSwitchMode: (mode: "public" | "private") => void;
   onSelectNote: (noteId: string) => void;
   onOpenLinkedNote: (title: string) => void;
   onOpenEditor: () => void;
@@ -222,7 +224,7 @@ function inverseRotatePoint(point: { x: number; y: number; z: number }, rotation
   };
 }
 
-export function GraphView({ notes, links, selectedNote, selectedClusterMode, onSelectClusterMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
+export function GraphView({ notes, links, mode, selectedNote, selectedClusterMode, onSelectClusterMode, onSwitchMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
   const graph = useMemo(() => buildSphericalVaultGraph(notes, links), [links, notes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [lockedNodeId, setLockedNodeId] = useState<string | null>(selectedNote ? `note:${selectedNote.id}` : ROOT_NODE_ID);
@@ -664,8 +666,24 @@ export function GraphView({ notes, links, selectedNote, selectedClusterMode, onS
 
       <div style={topBarStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
         <div className="min-w-0">
-          <h1 className="px-1 pt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
+          <div className="flex items-center gap-2 px-1 pt-1">
+            <h1 className="text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
+            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] text-slate-300">
+              {mode === "public" ? "Public feed" : "Private vault"}
+            </span>
+          </div>
           <div className="mt-3 flex max-w-[62vw] flex-wrap gap-2 sm:max-w-none">
+            <button
+              type="button"
+              onClick={() => onSwitchMode(mode === "public" ? "private" : "public")}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition sm:text-xs ${
+                mode === "private"
+                  ? "border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
+                  : "border-white/10 bg-slate-950/32 text-slate-200 hover:bg-white/8"
+              }`}
+            >
+              {mode === "public" ? "Open private vault" : "Open public feed"}
+            </button>
             {CLUSTER_MODE_OPTIONS.map((mode) => {
               const Icon = mode.icon;
               const active = selectedClusterMode === mode.id;
@@ -972,23 +990,25 @@ export function GraphView({ notes, links, selectedNote, selectedClusterMode, onS
               >
                 <span className="inline-flex items-center gap-1.5">
                   <ArrowLeft className="size-3.5" />
-                  {isMobile ? "Open" : "Open note"}
+                  {mode === "public" ? (isMobile ? "Read" : "Read note") : isMobile ? "Open" : "Open note"}
                 </span>
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-                  void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
-                }}
-                className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <Plus className="size-3.5" />
-                  {isCreating ? "Opening..." : "New"}
-                </span>
-              </button>
-              {previewNote && !isMobile ? (
+              {mode === "private" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+                    void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
+                  }}
+                  className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <Plus className="size-3.5" />
+                    {isCreating ? "Opening..." : "New"}
+                  </span>
+                </button>
+              ) : null}
+              {mode === "private" && previewNote && !isMobile ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -1010,19 +1030,21 @@ export function GraphView({ notes, links, selectedNote, selectedClusterMode, onS
           style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)" } : undefined}
           className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
         >
-          <button
-            type="button"
-            onClick={() => {
-              const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-              void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
-            }}
-            className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Plus className="size-4" />
-              {isCreating ? "Opening..." : "New"}
-            </span>
-          </button>
+          {mode === "private" ? (
+            <button
+              type="button"
+              onClick={() => {
+                const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+                void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
+              }}
+              className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Plus className="size-4" />
+                {isCreating ? "Opening..." : "New"}
+              </span>
+            </button>
+          ) : null}
         </div>
       )}
 

@@ -110,6 +110,8 @@ export type VaultNoteSchedule = {
 
 export type VaultNoteClusterMode = "ideas" | "projects" | "people" | "research";
 
+export type VaultNoteVisibility = "private" | "public";
+
 export type VaultNoteSnapshot = {
   id: string;
   title: string;
@@ -125,6 +127,8 @@ export type VaultNote = {
   folder?: string;
   tags?: string[];
   clusterMode?: VaultNoteClusterMode;
+  visibility?: VaultNoteVisibility;
+  publicTopics?: string[];
   isPinned?: boolean;
   status?: VaultNoteStatus;
   schedule?: VaultNoteSchedule;

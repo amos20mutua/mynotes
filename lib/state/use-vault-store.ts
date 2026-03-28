@@ -6,7 +6,7 @@ import { vaultRepository } from "@/lib/vault/repository";
 import { materializeVaultData } from "@/lib/vault/persistence";
 import type { VaultData, VaultLink, VaultNote } from "@/types";
 
-type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots">;
+type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots" | "visibility" | "publicTopics">;
 
 type VaultState = {
   notes: VaultNote[];
@@ -71,6 +71,8 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       folder: input?.folder ?? "Vault",
       tags: input?.tags ?? [],
       clusterMode: input?.clusterMode,
+      visibility: input?.visibility ?? "private",
+      publicTopics: input?.publicTopics ?? [],
       isPinned: input?.isPinned ?? false,
       status: input?.status ?? "draft",
       schedule: input?.schedule,

@@ -4,7 +4,7 @@ import { defaultVaultData } from "@/lib/vault/default-vault";
 import { materializeVaultData } from "@/lib/vault/persistence";
 import type { VaultData, VaultNote, VaultNoteStatus } from "@/types";
 
-type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots">;
+type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots" | "visibility" | "publicTopics">;
 
 const vaultDirectory = path.join(process.cwd(), "data");
 const vaultFilePath = path.join(vaultDirectory, "vault.json");
@@ -17,6 +17,8 @@ function normalizeNote(note: VaultNote): VaultNote {
     tags: Array.from(new Set((note.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
     title: note.title.trim() || "Untitled note",
     clusterMode: note.clusterMode,
+    visibility: note.visibility === "public" ? "public" : "private",
+    publicTopics: Array.from(new Set((note.publicTopics ?? []).map((topic) => topic.trim()).filter(Boolean))),
     snapshots: note.snapshots?.slice(0, 12),
     graphPosition: note.graphPosition
       ? {
@@ -70,6 +72,8 @@ export async function createVaultNote(input?: Partial<NoteMutationFields>) {
     folder: input?.folder?.trim() || input?.colorGroup?.trim() || "Vault",
     tags: input?.tags ?? [],
     clusterMode: input?.clusterMode,
+    visibility: input?.visibility ?? "private",
+    publicTopics: input?.publicTopics ?? [],
     isPinned: input?.isPinned ?? false,
     status: input?.status ?? "draft",
     schedule: input?.schedule,

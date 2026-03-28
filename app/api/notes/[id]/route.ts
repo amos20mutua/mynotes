@@ -9,6 +9,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     folder?: string;
     tags?: string[];
     clusterMode?: "ideas" | "projects" | "people" | "research";
+    visibility?: "private" | "public";
+    publicTopics?: string[];
     isPinned?: boolean;
     status?: "draft" | "active" | "archived";
     schedule?: { date: string; time?: string; done?: boolean; reminderMinutes?: number };

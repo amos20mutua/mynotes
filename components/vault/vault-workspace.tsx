@@ -9,7 +9,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
 import { Markdown } from "@tiptap/markdown";
-import { ArrowLeft, Bold, BriefcaseBusiness, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, History, Italic, Lightbulb, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Microscope, Plus, Quote, Redo2, Sparkles, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2, Users, Zap } from "lucide-react";
+import { ArrowLeft, Bold, BriefcaseBusiness, CalendarDays, Camera, Check, Clock3, Eye, EyeOff, Globe2, Heading1, Heading2, Highlighter, History, Italic, Lightbulb, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Microscope, Plus, Quote, Redo2, Sparkles, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2, Users, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RecognizeResult } from "tesseract.js";
@@ -26,6 +26,21 @@ import type { VaultData, VaultNote, VaultNoteClusterMode, VaultNoteSchedule, Vau
 type VaultWorkspaceProps = {
   initialVault: VaultData;
 };
+
+const PUBLIC_TOPIC_OPTIONS = [
+  "Wisdom",
+  "Christian God",
+  "Tech",
+  "Futuristic Tech",
+  "AI",
+  "Public Speaking",
+  "Purpose",
+  "Building Tech",
+  "Future of AI",
+  "Future of Tech",
+  "Highest IQ",
+  "Quantum Computing"
+] as const;
 
 type DetectedTextBlock = {
   rawValue: string;
@@ -695,6 +710,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const selectNote = useVaultStore((state) => state.selectNote);
   const deleteNote = useVaultStore((state) => state.deleteNote);
   const [activeView, setActiveView] = useState<"vault" | "note">("vault");
+  const [workspaceMode, setWorkspaceMode] = useState<"public" | "private">(() => (initialVault.notes.length > 0 ? "public" : "private"));
+  const [publicSelectedNoteId, setPublicSelectedNoteId] = useState(initialVault.notes[0]?.id ?? "");
   const [isCompact, setIsCompact] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -726,12 +743,15 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const memoryPanelRef = useRef<HTMLDivElement | null>(null);
   const touchStartRef = useRef<{ x: number; y: number; time: number; allowGesture: boolean } | null>(null);
 
-  const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
-  const seedLinks = initialVault.links.length > 0 ? initialVault.links : defaultVaultData.links;
-  const effectiveNotes = isLoaded ? notes : seedNotes;
-  const effectiveLinks = isLoaded ? links : seedLinks;
-  const effectiveSelectedNoteId = isLoaded ? selectedNoteId : seedNotes[0]?.id ?? "";
+  const privateSeedNotes = isLoaded ? notes : defaultVaultData.notes;
+  const privateSeedLinks = isLoaded ? links : defaultVaultData.links;
+  const publicSeedNotes = initialVault.notes;
+  const publicSeedLinks = initialVault.links;
+  const effectiveNotes = workspaceMode === "public" ? publicSeedNotes : privateSeedNotes;
+  const effectiveLinks = workspaceMode === "public" ? publicSeedLinks : privateSeedLinks;
+  const effectiveSelectedNoteId = workspaceMode === "public" ? publicSelectedNoteId : (isLoaded ? selectedNoteId : defaultVaultData.notes[0]?.id ?? "");
   const selectedNote = getSelectedNote(effectiveNotes, effectiveSelectedNoteId);
+  const isReadOnly = workspaceMode === "public";
   const backlinks = getBacklinks(effectiveNotes, selectedNote, effectiveLinks);
   const upcomingScheduledNotes = [...effectiveNotes]
     .filter((note) => note.schedule?.date && !note.schedule.done)
@@ -750,15 +770,25 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const dailyMemoryNotes = buildDailyMemory(effectiveNotes, selectedNote);
   const selectedSnapshots = selectedNote?.snapshots ?? [];
 
+  const openNoteInCurrentMode = useCallback((noteId: string) => {
+    if (workspaceMode === "public") {
+      setPublicSelectedNoteId(noteId);
+    } else {
+      selectNote(noteId);
+    }
+
+    setActiveView("note");
+  }, [selectNote, workspaceMode]);
+
   useEffect(() => {
     selectedNoteRef.current = selectedNote;
   }, [selectedNote]);
 
   useEffect(() => {
     if (!hasHydratedInitialData) {
-      initializeVault(initialVault);
+      initializeVault(defaultVaultData);
     }
-  }, [hasHydratedInitialData, initializeVault, initialVault]);
+  }, [hasHydratedInitialData, initializeVault]);
 
   useEffect(() => {
     loadVault().catch(() => {
@@ -954,7 +984,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     onUpdate({ editor: activeEditor }) {
       const currentNote = selectedNoteRef.current;
 
-      if (!currentNote) {
+      if (!currentNote || isReadOnly) {
         return;
       }
 
@@ -964,6 +994,14 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       void queueSave(currentNote.id, { content: markdown });
     }
   });
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    editor.setEditable(!isReadOnly);
+  }, [editor, isReadOnly]);
 
   useEffect(() => {
     if (!editor) {
@@ -995,6 +1033,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }, [draftNoteId, editor, selectedNote]);
 
   async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
+    if (isReadOnly) {
+      setWorkspaceMode("private");
+      return;
+    }
+
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
     const initialContent = anchorTitle ? `Linked from [[${anchorTitle}]]\n\n` : "";
 
@@ -1019,7 +1062,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }
 
   async function updateSchedule(updates: Partial<VaultNoteSchedule>) {
-    if (!selectedNote) {
+    if (!selectedNote || isReadOnly) {
       return;
     }
 
@@ -1046,9 +1089,9 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }
 
   const absorbCapturedNote = useCallback(async (file: File) => {
-    const currentNote = selectedNoteRef.current;
+      const currentNote = selectedNoteRef.current;
 
-    if (!currentNote) {
+    if (!currentNote || isReadOnly) {
       return;
     }
 
@@ -1167,7 +1210,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         cameraInputRef.current.value = "";
       }
     }
-  }, [draftContent, draftNoteId, editor, queueSave]);
+  }, [draftContent, draftNoteId, editor, isReadOnly, queueSave]);
 
   useEffect(() => {
     absorbCapturedNoteRef.current = absorbCapturedNote;
@@ -1178,6 +1221,15 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }, [selectedNote?.id, selectedSnapshots.length]);
 
   async function openLinkedNote(title: string) {
+    if (isReadOnly) {
+      const existing = effectiveNotes.find((note) => normalizeTitle(note.title) === normalizeTitle(title));
+      if (existing) {
+        setPublicSelectedNoteId(existing.id);
+        setActiveView("note");
+      }
+      return;
+    }
+
     try {
       const result = await openExistingOrCreateLinkedNote(title, effectiveNotes, selectedNote, selectNote, createNote, updateNote);
       setActiveView("note");
@@ -1191,7 +1243,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }
 
   async function updateClusterMode(clusterMode: VaultNoteClusterMode) {
-    if (!selectedNote) {
+    if (!selectedNote || isReadOnly) {
       return;
     }
 
@@ -1199,6 +1251,44 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       await updateNote(selectedNote.id, { clusterMode });
     } catch {
       toast.error("Could not update note mode");
+    }
+  }
+
+  async function updateVisibility(visibility: "private" | "public") {
+    if (!selectedNote || isReadOnly) {
+      return;
+    }
+
+    try {
+      await updateNote(selectedNote.id, {
+        visibility,
+        publicTopics: visibility === "public" ? (selectedNote.publicTopics ?? []) : []
+      });
+      toast.success(visibility === "public" ? "This note is now published to the public feed" : "This note is private again");
+    } catch {
+      toast.error("Could not update note visibility");
+    }
+  }
+
+  async function togglePublicTopic(topic: string) {
+    if (!selectedNote || isReadOnly) {
+      return;
+    }
+
+    const currentTopics = new Set(selectedNote.publicTopics ?? []);
+    if (currentTopics.has(topic)) {
+      currentTopics.delete(topic);
+    } else {
+      currentTopics.add(topic);
+    }
+
+    try {
+      await updateNote(selectedNote.id, {
+        visibility: "public",
+        publicTopics: Array.from(currentTopics)
+      });
+    } catch {
+      toast.error("Could not update public topics");
     }
   }
 
@@ -1485,6 +1575,74 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     </div>
   );
 
+  const publishPanel = selectedNote && !isReadOnly ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <Globe2 className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Public publishing</p>
+      </div>
+      <p className={isCompact ? "mt-2 text-sm leading-6 text-white/72" : "mt-2 text-sm text-slate-300"}>
+        Keep your vault private by default. Only notes you publish appear in the public web feed.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            void updateVisibility("private");
+          }}
+          className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm transition ${
+            selectedNote.visibility !== "public"
+              ? "border-white/14 bg-white/10 text-white"
+              : "border-white/10 bg-white/6 text-white/72 hover:bg-white/10"
+          }`}
+        >
+          <EyeOff className="size-4" />
+          Private
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            void updateVisibility("public");
+          }}
+          className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm transition ${
+            selectedNote.visibility === "public"
+              ? "border-[rgba(239,191,114,0.24)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
+              : "border-white/10 bg-white/6 text-white/72 hover:bg-white/10"
+          }`}
+        >
+          <Eye className="size-4" />
+          Public
+        </button>
+      </div>
+      {selectedNote.visibility === "public" ? (
+        <div className="mt-4">
+          <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Public topics</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PUBLIC_TOPIC_OPTIONS.map((topic) => {
+              const active = (selectedNote.publicTopics ?? []).includes(topic);
+              return (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => {
+                    void togglePublicTopic(topic);
+                  }}
+                  className={`rounded-full border px-3 py-1.5 text-xs transition ${
+                    active
+                      ? "border-[color:var(--accent-blue)] bg-[color:var(--accent-blue-soft)] text-white"
+                      : "border-white/10 bg-white/5 text-slate-200 hover:bg-white/8"
+                  }`}
+                >
+                  {topic}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   const schedulePanel = selectedNote ? (
     <div ref={schedulePanelRef} className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
       <div className="flex items-center justify-between gap-3">
@@ -1679,8 +1837,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             key={note.id}
             type="button"
             onClick={() => {
-              selectNote(note.id);
-              setActiveView("note");
+              openNoteInCurrentMode(note.id);
             }}
             className="flex w-full items-start justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
           >
@@ -1709,8 +1866,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             key={note.id}
             type="button"
             onClick={() => {
-              selectNote(note.id);
-              setActiveView("note");
+              openNoteInCurrentMode(note.id);
             }}
             className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
           >
@@ -1740,8 +1896,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             key={note.id}
             type="button"
             onClick={() => {
-              selectNote(note.id);
-              setActiveView("note");
+              openNoteInCurrentMode(note.id);
             }}
             className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
           >
@@ -1771,8 +1926,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             key={note.id}
             type="button"
             onClick={() => {
-              selectNote(note.id);
-              setActiveView("note");
+              openNoteInCurrentMode(note.id);
             }}
             className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
           >
@@ -1843,7 +1997,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     );
   }
 
-  if (!isLoaded && seedNotes.length === 0) {
+  if (!isLoaded && privateSeedNotes.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-slate-300">
@@ -1893,10 +2047,19 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
           <GraphView
             notes={effectiveNotes}
             links={effectiveLinks}
+            mode={workspaceMode}
             selectedNote={selectedNote}
             selectedClusterMode={graphClusterMode}
             onSelectClusterMode={setGraphClusterMode}
-            onSelectNote={selectNote}
+            onSwitchMode={setWorkspaceMode}
+            onSelectNote={(noteId) => {
+              if (workspaceMode === "public") {
+                setPublicSelectedNoteId(noteId);
+                return;
+              }
+
+              selectNote(noteId);
+            }}
             onOpenLinkedNote={(title) => {
               void openLinkedNote(title);
             }}
@@ -1929,19 +2092,21 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       >
         {selectedNote ? (
           <>
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  void absorbCapturedNote(file);
-                }
-              }}
-            />
+            {!isReadOnly ? (
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void absorbCapturedNote(file);
+                  }
+                }}
+              />
+            ) : null}
             <div
               className={
                 isCompact
@@ -1963,33 +2128,35 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               </button>
 
               <div className={isCompact ? "flex items-center gap-3" : "flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500"}>
-                {!isCompact ? <span>{isSaving ? "Saving..." : `Saved ${formatUpdatedAt(selectedNote.updatedAt)}`}</span> : null}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await deleteNote(selectedNote.id);
-                      setActiveView("vault");
-                      toast.success("Note deleted");
-                    } catch {
-                      toast.error("Could not delete note");
+                {!isCompact ? <span>{isReadOnly ? "Public note" : isSaving ? "Saving..." : `Saved ${formatUpdatedAt(selectedNote.updatedAt)}`}</span> : null}
+                {!isReadOnly ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await deleteNote(selectedNote.id);
+                        setActiveView("vault");
+                        toast.success("Note deleted");
+                      } catch {
+                        toast.error("Could not delete note");
+                      }
+                    }}
+                    className={
+                      isCompact
+                        ? "inline-flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_20px_56px_rgba(0,0,0,0.28)] transition hover:bg-white/16"
+                        : "rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-red-100 transition hover:bg-red-400/20"
                     }
-                  }}
-                  className={
-                    isCompact
-                      ? "inline-flex size-12 items-center justify-center rounded-full border border-white/10 bg-white/10 text-white shadow-[0_20px_56px_rgba(0,0,0,0.28)] transition hover:bg-white/16"
-                      : "rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-red-100 transition hover:bg-red-400/20"
-                  }
-                  disabled={effectiveNotes.length === 1}
-                  aria-label="Delete note"
-                >
-                  <Trash2 className="size-4" />
-                  {!isCompact ? (
-                    <span className="ml-1 inline-flex items-center gap-1.5">
-                      Delete
-                    </span>
-                  ) : null}
-                </button>
+                    disabled={effectiveNotes.length === 1}
+                    aria-label="Delete note"
+                  >
+                    <Trash2 className="size-4" />
+                    {!isCompact ? (
+                      <span className="ml-1 inline-flex items-center gap-1.5">
+                        Delete
+                      </span>
+                    ) : null}
+                  </button>
+                ) : null}
                 {isCompact ? (
                   <div className="inline-flex size-12 items-center justify-center rounded-full bg-[#f5c400] text-black shadow-[0_20px_56px_rgba(245,196,0,0.28)]">
                     <Check className="size-6" />
@@ -2060,7 +2227,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               <Input
                 ref={titleInputRef}
                 value={editorTitle}
+                readOnly={isReadOnly}
                 onChange={(event) => {
+                  if (isReadOnly) {
+                    return;
+                  }
                   const nextTitle = event.target.value;
                   setDraftNoteId(selectedNote.id);
                   setDraftTitle(nextTitle);
@@ -2072,17 +2243,19 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                   }
 
                   event.preventDefault();
-                  editor?.commands.focus("end");
+                  if (!isReadOnly) {
+                    editor?.commands.focus("end");
+                  }
                 }}
-                placeholder="Untitled note"
+                placeholder={isReadOnly ? "Public note" : "Untitled note"}
                 className={
                   isCompact
-                    ? "mt-2 h-auto border-0 bg-transparent px-0 py-0 text-[34px] font-semibold leading-[1.05] text-white shadow-none focus:border-0"
-                    : "h-16 rounded-[28px] border-white/10 bg-white/[0.04] text-3xl font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
+                    ? `mt-2 h-auto border-0 bg-transparent px-0 py-0 text-[34px] font-semibold leading-[1.05] text-white shadow-none focus:border-0 ${isReadOnly ? "pointer-events-none" : ""}`
+                    : `h-16 rounded-[28px] border-white/10 bg-white/[0.04] text-3xl font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.02)] ${isReadOnly ? "pointer-events-none" : ""}`
                 }
               />
 
-              {!isCompact ? editorToolbar : null}
+              {!isCompact && !isReadOnly ? editorToolbar : null}
 
               <div
                 className={
@@ -2101,17 +2274,19 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 <EditorContent editor={editor} />
               </div>
 
-              {capturePanel}
+              {publishPanel}
 
-              {clusterPanel}
+              {!isReadOnly ? capturePanel : null}
 
-              {promptsPanel}
+              {!isReadOnly ? clusterPanel : null}
 
-              {actionsPanel}
+              {!isReadOnly ? promptsPanel : null}
 
               {semanticPanel}
 
-              {schedulePanel}
+              {!isReadOnly ? actionsPanel : null}
+
+              {!isReadOnly ? schedulePanel : null}
 
               <div className={isCompact ? `${isKeyboardOpen ? "mt-5 opacity-0 pointer-events-none h-0 overflow-hidden" : "mt-8 space-y-3"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
                 <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Backlinks</p>
@@ -2122,8 +2297,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                         key={note.id}
                         type="button"
                         onClick={() => {
-                          selectNote(note.id);
-                          setActiveView("note");
+                          openNoteInCurrentMode(note.id);
                         }}
                         className={
                           isCompact
@@ -2140,16 +2314,16 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 </div>
               </div>
 
-              {upcomingPanel}
+              {!isReadOnly ? upcomingPanel : null}
 
               {memoryPanel}
 
-              {historyPanel}
+              {!isReadOnly ? historyPanel : null}
 
               {recentTrailPanel}
             </div>
 
-            {isCompact ? (
+            {isCompact && !isReadOnly ? (
               <div
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+18px)]"
                 style={{ bottom: keyboardInset > 0 ? `${Math.max(12, keyboardInset - 8)}px` : "0px" }}
@@ -2168,17 +2342,23 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
           </>
         ) : (
           <div className="flex min-h-[70vh] flex-col items-center justify-center gap-4 text-center">
-            <p className="text-lg font-semibold text-white">No note selected</p>
-            <Button
-              variant="accent"
-              type="button"
-              onClick={() => {
-                void createFreshNote();
-              }}
-            >
-              <Plus className="size-4" />
-              New
-            </Button>
+            <p className="text-lg font-semibold text-white">{workspaceMode === "public" ? "No public note selected" : "No note selected"}</p>
+            {workspaceMode === "private" ? (
+              <Button
+                variant="accent"
+                type="button"
+                onClick={() => {
+                  void createFreshNote();
+                }}
+              >
+                <Plus className="size-4" />
+                New
+              </Button>
+            ) : (
+              <Button variant="secondary" type="button" onClick={() => setWorkspaceMode("private")}>
+                Open private vault
+              </Button>
+            )}
           </div>
         )}
       </div>

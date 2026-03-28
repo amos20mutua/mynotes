@@ -1,39 +1,35 @@
-import { defaultVaultData } from "@/lib/vault/default-vault";
 import { isSupabaseEnabled } from "@/lib/supabase/env";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
-import { materializeVaultData, supabaseRowToLink, supabaseRowToNote, type SupabaseLinkRow, type SupabaseNoteRow } from "@/lib/vault/persistence";
+import { materializeVaultData, supabaseRowToNote, type SupabaseNoteRow } from "@/lib/vault/persistence";
 import type { VaultData } from "@/types";
 
 export async function readInitialVault(): Promise<VaultData> {
   if (!isSupabaseEnabled) {
-    return defaultVaultData;
+    return { notes: [], links: [] };
   }
 
   try {
     const client = await getSupabaseServerClient();
 
     if (!client) {
-      return defaultVaultData;
+      return { notes: [], links: [] };
     }
 
-    const [{ data: notesData, error: notesError }, { data: linksData, error: linksError }] = await Promise.all([
-      client.from("notes").select("*").order("updated_at", { ascending: false }),
-      client.from("links").select("*").order("created_at", { ascending: true })
-    ]);
+    const { data: notesData, error: notesError } = await client.from("notes").select("*").eq("visibility", "public").order("updated_at", { ascending: false });
 
-    if (notesError || linksError || !notesData) {
-      return defaultVaultData;
+    if (notesError || !notesData) {
+      return { notes: [], links: [] };
     }
 
     if (notesData.length === 0) {
-      return defaultVaultData;
+      return { notes: [], links: [] };
     }
 
     return materializeVaultData({
       notes: (notesData as SupabaseNoteRow[]).map(supabaseRowToNote),
-      links: (linksData as SupabaseLinkRow[] | null | undefined)?.map(supabaseRowToLink) ?? []
+      links: []
     });
   } catch {
-    return defaultVaultData;
+    return { notes: [], links: [] };
   }
 }

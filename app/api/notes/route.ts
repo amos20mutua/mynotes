@@ -13,6 +13,8 @@ export async function POST(request: Request) {
     folder?: string;
     tags?: string[];
     clusterMode?: "ideas" | "projects" | "people" | "research";
+    visibility?: "private" | "public";
+    publicTopics?: string[];
     isPinned?: boolean;
     status?: "draft" | "active" | "archived";
     schedule?: { date: string; time?: string; done?: boolean; reminderMinutes?: number };
