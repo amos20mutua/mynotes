@@ -9,6 +9,7 @@ const DATABASE_VERSION = 1;
 const STORE_NAME = "vault";
 const PRIMARY_KEY = "primary";
 const LOCAL_STORAGE_KEY = "obsidian-vault";
+const DEVICE_ID_KEY = "vault-device-id";
 
 function openVaultDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -75,6 +76,21 @@ function writeVaultToLocalStorage(data: VaultData) {
   } catch {
     // Ignore quota and privacy-mode failures. IndexedDB may still succeed.
   }
+}
+
+export function getOrCreateVaultDeviceId() {
+  if (typeof window === "undefined") {
+    return "server-device";
+  }
+
+  const existing = window.localStorage.getItem(DEVICE_ID_KEY);
+  if (existing) {
+    return existing;
+  }
+
+  const nextValue = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `device-${Date.now()}`;
+  window.localStorage.setItem(DEVICE_ID_KEY, nextValue);
+  return nextValue;
 }
 
 export async function readBrowserVault(): Promise<VaultData> {

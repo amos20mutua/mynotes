@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowLeft, BriefcaseBusiness, Lightbulb, Microscope, Plus, Search, Trash2, Users } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
+import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ROOT_NODE_ID } from "@/lib/vault/graph";
@@ -14,22 +14,12 @@ type GraphViewProps = {
   mode: "public" | "private";
   selectedNote: VaultNote | null;
   selectedClusterMode: "all" | VaultNoteClusterMode;
-  onSelectClusterMode: (mode: "all" | VaultNoteClusterMode) => void;
-  onSwitchMode: (mode: "public" | "private") => void;
   onSelectNote: (noteId: string) => void;
   onOpenLinkedNote: (title: string) => void;
   onOpenEditor: () => void;
   onCreateNoteAtPoint: (graphPosition: { x: number; y: number; z: number }, connectToTitle?: string) => Promise<void>;
   onDeleteNote: (noteId: string) => Promise<void>;
 };
-
-const CLUSTER_MODE_OPTIONS: Array<{ id: "all" | VaultNoteClusterMode; label: string; icon?: typeof Lightbulb }> = [
-  { id: "all", label: "All" },
-  { id: "ideas", label: "Ideas", icon: Lightbulb },
-  { id: "projects", label: "Projects", icon: BriefcaseBusiness },
-  { id: "people", label: "People", icon: Users },
-  { id: "research", label: "Research", icon: Microscope }
-];
 
 type ProjectedNode = {
   id: string;
@@ -224,16 +214,17 @@ function inverseRotatePoint(point: { x: number; y: number; z: number }, rotation
   };
 }
 
-export function GraphView({ notes, links, mode, selectedNote, selectedClusterMode, onSelectClusterMode, onSwitchMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
+export function GraphView({ notes, links, mode, selectedNote, selectedClusterMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
   const graph = useMemo(() => buildSphericalVaultGraph(notes, links), [links, notes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [lockedNodeId, setLockedNodeId] = useState<string | null>(selectedNote ? `note:${selectedNote.id}` : ROOT_NODE_ID);
   const [searchInput, setSearchInput] = useState("");
-  const [query, setQuery] = useState("");
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [isCreating, setIsCreating] = useState(false);
   const [rotationX, setRotationX] = useState(-0.18);
   const [rotationY, setRotationY] = useState(0.24);
+  const [pulseWave, setPulseWave] = useState<{ nodeId: string; startedAt: number } | null>(null);
+  const [activeTrail, setActiveTrail] = useState<Array<{ x: number; y: number; radius: number }>>([]);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<DeferredInstallPrompt | null>(null);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [isStandaloneApp, setIsStandaloneApp] = useState(() => {
@@ -258,19 +249,33 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const pinchDistanceRef = useRef<number | null>(null);
   const lastHapticAtRef = useRef(0);
   const hapticTravelRef = useRef(0);
+  const rotationAccumulatorRef = useRef(0);
   const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const deferredSearchInput = useDeferredValue(searchInput);
+  const query = deferredSearchInput.trim().toLowerCase();
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node] as const)), [graph.nodes]);
   const noteById = useMemo(() => new Map(notes.map((note) => [note.id, note] as const)), [notes]);
+  const noteNodeIdByNoteId = useMemo(() => new Map(graph.nodes.filter((node) => node.noteId).map((node) => [node.noteId as string, node.id] as const)), [graph.nodes]);
   const adjacency = useMemo(() => buildAdjacency(graph.edges), [graph.edges]);
+  const searchableNotes = useMemo(
+    () =>
+      notes.map((note) => {
+        const title = note.title.toLowerCase();
+        const content = note.content.toLowerCase();
+        const titleTokens = tokenizeSearchText(note.title);
+        const contentTokens = tokenizeSearchText(note.content);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setQuery(searchInput.trim().toLowerCase());
-    }, 120);
-
-    return () => window.clearTimeout(timeout);
-  }, [searchInput]);
+        return {
+          noteId: note.id,
+          title,
+          content,
+          titleTokens,
+          combinedTokenSet: new Set([...titleTokens, ...contentTokens])
+        };
+      }),
+    [notes]
+  );
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 768px)");
@@ -306,7 +311,13 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
       lastTime = time;
 
       if (!draggingRef.current && !hoverPauseRef.current) {
-        setRotationY((value) => value + delta * AUTO_ROTATE_SPEED);
+        rotationAccumulatorRef.current += delta;
+
+        if (rotationAccumulatorRef.current >= 28) {
+          const step = rotationAccumulatorRef.current;
+          rotationAccumulatorRef.current = 0;
+          setRotationY((value) => value + step * AUTO_ROTATE_SPEED);
+        }
       }
 
       frame = window.requestAnimationFrame(tick);
@@ -324,27 +335,22 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
 
     const normalizedQuery = query.trim().toLowerCase();
 
-    return notes
+    return searchableNotes
       .map((note) => {
-        const title = note.title.toLowerCase();
-        const content = note.content.toLowerCase();
-        const titleTokens = tokenizeSearchText(note.title);
-        const contentTokens = tokenizeSearchText(note.content);
-        const combinedTokenSet = new Set([...titleTokens, ...contentTokens]);
-        const titleTokenMatches = searchTokens.filter((token) => titleTokens.includes(token)).length;
-        const contentTokenMatches = searchTokens.filter((token) => combinedTokenSet.has(token)).length;
+        const titleTokenMatches = searchTokens.filter((token) => note.titleTokens.includes(token)).length;
+        const contentTokenMatches = searchTokens.filter((token) => note.combinedTokenSet.has(token)).length;
 
         let score = 0;
 
-        if (title === normalizedQuery) {
+        if (note.title === normalizedQuery) {
           score += 240;
-        } else if (title.startsWith(normalizedQuery)) {
+        } else if (note.title.startsWith(normalizedQuery)) {
           score += 180;
-        } else if (title.includes(normalizedQuery)) {
+        } else if (note.title.includes(normalizedQuery)) {
           score += 130;
         }
 
-        if (content.includes(normalizedQuery)) {
+        if (note.content.includes(normalizedQuery)) {
           score += 56;
         }
 
@@ -352,26 +358,31 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
         score += contentTokenMatches * 8;
 
         return {
-          noteId: note.id,
+          noteId: note.noteId,
           score,
-          titleStrength: title === normalizedQuery ? 1 : title.startsWith(normalizedQuery) ? 0.9 : title.includes(normalizedQuery) ? 0.78 : titleTokenMatches > 0 ? 0.7 : 0,
-          contentStrength: contentTokenMatches > 0 || content.includes(normalizedQuery) ? Math.min(0.72, 0.18 + contentTokenMatches * 0.12 + (content.includes(normalizedQuery) ? 0.16 : 0)) : 0
+          titleStrength:
+            note.title === normalizedQuery ? 1 : note.title.startsWith(normalizedQuery) ? 0.9 : note.title.includes(normalizedQuery) ? 0.78 : titleTokenMatches > 0 ? 0.7 : 0,
+          contentStrength:
+            contentTokenMatches > 0 || note.content.includes(normalizedQuery)
+              ? Math.min(0.72, 0.18 + contentTokenMatches * 0.12 + (note.content.includes(normalizedQuery) ? 0.16 : 0))
+              : 0
         };
       })
       .filter((match) => match.score > 0)
       .sort((left, right) => right.score - left.score);
-  }, [notes, query, searchTokens]);
+  }, [query, searchTokens, searchableNotes]);
 
   const searchMatchNode = useMemo(() => {
     const best = searchMatches[0];
-    return best ? graph.nodes.find((node) => node.noteId === best.noteId) ?? null : null;
-  }, [graph.nodes, searchMatches]);
+    return best ? nodeById.get(noteNodeIdByNoteId.get(best.noteId) ?? "") ?? null : null;
+  }, [nodeById, noteNodeIdByNoteId, searchMatches]);
 
   const searchMatchStrengthByNodeId = useMemo(() => {
     const strengths = new Map<string, number>();
 
     searchMatches.forEach((match, index) => {
-      const node = graph.nodes.find((entry) => entry.noteId === match.noteId);
+      const nodeId = noteNodeIdByNoteId.get(match.noteId);
+      const node = nodeId ? nodeById.get(nodeId) : null;
 
       if (!node) {
         return;
@@ -383,7 +394,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
     });
 
     return strengths;
-  }, [graph.nodes, searchMatches]);
+  }, [nodeById, noteNodeIdByNoteId, searchMatches]);
 
   const activeNodeId = hoveredNodeId ?? searchMatchNode?.id ?? lockedNodeId ?? ROOT_NODE_ID;
   const neighborhoodDepths = useMemo(() => buildDepthMap(activeNodeId, adjacency), [activeNodeId, adjacency]);
@@ -511,13 +522,42 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
     return graph.nodes.filter((node) => connectedIds.has(node.id));
   }, [graph.edges, graph.nodes, previewNode]);
 
+  const animatedNow = typeof performance !== "undefined" ? performance.now() : 0;
+  const pulseProgress = pulseWave ? (animatedNow - pulseWave.startedAt) / 860 : 1;
+  const pulseActive = Boolean(pulseWave && pulseProgress < 1.2);
+
+  useEffect(() => {
+    if (!pulseWave || pulseProgress < 1.2) {
+      return;
+    }
+
+    setPulseWave(null);
+  }, [pulseProgress, pulseWave]);
+
+  useEffect(() => {
+    const activeProjectedNode = activeNodeId ? projectedNodeById.get(activeNodeId) ?? null : null;
+
+    if (!activeProjectedNode) {
+      setActiveTrail([]);
+      return;
+    }
+
+    setActiveTrail((previous) => [
+      { x: activeProjectedNode.x, y: activeProjectedNode.y, radius: activeProjectedNode.radius },
+      ...previous.slice(0, 4)
+    ]);
+  }, [activeNodeId, projectedNodeById, rotationX, rotationY]);
+
   const handleNodeClick = (nodeId: string) => {
     setLockedNodeId(nodeId);
     setHoveredNodeId(null);
+    setPulseWave({ nodeId, startedAt: performance.now() });
 
     const node = nodeById.get(nodeId);
     if (node?.noteId) {
-      onSelectNote(node.noteId);
+      startTransition(() => {
+        onSelectNote(node.noteId!);
+      });
     }
   };
 
@@ -527,8 +567,10 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
     }
 
     if (previewNote) {
-      onSelectNote(previewNote.id);
-      onOpenEditor();
+      startTransition(() => {
+        onSelectNote(previewNote.id);
+        onOpenEditor();
+      });
       return;
     }
 
@@ -666,45 +708,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
 
       <div style={topBarStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 px-1 pt-1">
-            <h1 className="text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] text-slate-300">
-              {mode === "public" ? "Public feed" : "Private vault"}
-            </span>
-          </div>
-          <div className="mt-3 flex max-w-[62vw] flex-wrap gap-2 sm:max-w-none">
-            <button
-              type="button"
-              onClick={() => onSwitchMode(mode === "public" ? "private" : "public")}
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition sm:text-xs ${
-                mode === "private"
-                  ? "border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
-                  : "border-white/10 bg-slate-950/32 text-slate-200 hover:bg-white/8"
-              }`}
-            >
-              {mode === "public" ? "Open private vault" : "Open public feed"}
-            </button>
-            {CLUSTER_MODE_OPTIONS.map((mode) => {
-              const Icon = mode.icon;
-              const active = selectedClusterMode === mode.id;
-
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => onSelectClusterMode(mode.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition sm:text-xs ${
-                    active
-                      ? "border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
-                      : "border-white/10 bg-slate-950/32 text-slate-200 hover:bg-white/8"
-                  }`}
-                >
-                  {Icon ? <Icon className="size-3.5" /> : null}
-                  {mode.label}
-                </button>
-              );
-            })}
-          </div>
+          <h1 className="px-1 pt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
         </div>
 
         <div className="flex min-w-0 items-center gap-2">
@@ -724,16 +728,17 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
             <Search className="size-4 text-slate-500" />
             <Input
               value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                startTransition(() => {
+                  setSearchInput(nextValue);
+                });
+              }}
               placeholder="Search notes"
               className="h-auto min-w-[92px] border-0 bg-transparent px-0 py-0 text-sm focus:border-0 sm:min-w-[200px]"
             />
           </div>
         </div>
-      </div>
-
-      <div className="pointer-events-none absolute right-3 top-[calc(env(safe-area-inset-top,0px)+118px)] z-20 rounded-full border border-white/10 bg-slate-950/38 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] text-slate-300 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:right-5 sm:top-28 sm:text-xs">
-        {semanticZoomTier === "macro" ? "Overview zoom" : semanticZoomTier === "cluster" ? "Cluster zoom" : "Detail zoom"}
       </div>
 
       <div
@@ -855,7 +860,30 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
               const opacity = matchedBySearch ? 0.18 + matchStrength * 0.44 : highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.018 + frontFactor * 0.05;
               const width = matchedBySearch ? 0.72 + matchStrength * 0.9 : highlighted ? (activeDepth <= 1 ? 1.85 : 1.02) : 0.42;
 
-              return <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />;
+              const pulseTouchesEdge = pulseWave && (edge.source === pulseWave.nodeId || edge.target === pulseWave.nodeId);
+              const pulseOpacity = pulseTouchesEdge && pulseActive ? Math.max(0, 0.28 - pulseProgress * 0.22) : 0;
+              const dashLength = Math.hypot(target.x - source.x, target.y - source.y);
+              const pulseDashOffset = dashLength - dashLength * Math.min(1, pulseProgress);
+
+              return (
+                <g key={`${edge.source}-${edge.target}`}>
+                  <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />
+                  {pulseTouchesEdge && pulseOpacity > 0 ? (
+                    <line
+                      x1={source.x}
+                      y1={source.y}
+                      x2={target.x}
+                      y2={target.y}
+                      stroke="#f2b3ae"
+                      strokeOpacity={pulseOpacity}
+                      strokeWidth={Math.max(width + 0.5, 1.2)}
+                      strokeLinecap="round"
+                      strokeDasharray={`${Math.max(18, dashLength * 0.22)} ${Math.max(24, dashLength)}`}
+                      strokeDashoffset={pulseDashOffset}
+                    />
+                  ) : null}
+                </g>
+              );
             })}
 
             {projectedNodes.map((node) => {
@@ -890,6 +918,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
               const labelOpacity = primarySearchMatch ? 1 : searchMatched ? 0.68 + matchStrength * 0.24 : selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.84 : 0.42 + frontFactor * 0.42;
               const labelColor = primarySearchMatch ? displayPalette.frontLabel : searchMatched ? displayPalette.label : selected || frontFactor > 0.72 ? displayPalette.frontLabel : displayPalette.label;
               const nodeFill = primarySearchMatch ? displayPalette.selected : searchMatched ? displayPalette.fill : selected ? displayPalette.selected : hovered ? displayPalette.selected : displayPalette.fill;
+              const activePulse = pulseWave?.nodeId === node.id && pulseActive ? 1 - Math.min(1, pulseProgress) : 0;
 
               return (
                 <g
@@ -910,7 +939,25 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
                   }}
                 >
                   <circle r={Math.max(radius * 2.1, 12)} fill="transparent" />
+                  {selected && activeTrail.length > 1
+                    ? activeTrail.slice(1).map((trail, index) => (
+                        <circle
+                          key={`${node.id}-trail-${index}`}
+                          cx={trail.x - node.x}
+                          cy={trail.y - node.y}
+                          r={Math.max(trail.radius * (1 - index * 0.12), 3)}
+                          fill={displayPalette.glow}
+                          opacity={0.15 - index * 0.028}
+                        />
+                      ))
+                    : null}
                   <circle r={radius * 1.8} fill={displayPalette.glow} opacity={haloOpacity} />
+                  {activePulse > 0 ? (
+                    <>
+                      <circle r={radius * (1.9 + pulseProgress * 1.8)} fill="none" stroke={displayPalette.glow} strokeOpacity={activePulse * 0.65} strokeWidth={1.2} />
+                      <circle r={radius * (1.25 + pulseProgress)} fill="none" stroke={displayPalette.selected} strokeOpacity={activePulse * 0.32} strokeWidth={0.9} />
+                    </>
+                  ) : null}
                   <circle r={radius} fill={nodeFill} fillOpacity={nodeOpacity} />
                   {showLabel ? (
                     <g transform={`translate(${radius + 8} ${-Math.max(2, radius * 0.25)})`} opacity={labelOpacity}>
@@ -932,7 +979,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
           style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
           className="absolute inset-x-3 z-20 flex flex-col items-center max-sm:inset-x-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px]"
         >
-          <div className="flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-slate-950/58 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(239,191,114,0.08)] backdrop-blur-xl max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:p-3.5 md:backdrop-blur-2xl">
+          <div className="flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-[rgba(6,10,20,0.34)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[22px] max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:bg-[rgba(6,10,20,0.38)] max-sm:p-3.5 md:backdrop-blur-[28px]">
             <div>
               <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
                 {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
@@ -972,7 +1019,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
                         key={item.id}
                         type="button"
                         onClick={() => handleNodeClick(item.nodeId)}
-                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/8 max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-slate-200 transition hover:bg-white/[0.08] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
                       >
                         {item.title}
                       </button>
@@ -986,7 +1033,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
               <button
                 type="button"
                 onClick={handlePanelOpen}
-                className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.14)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.22)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <ArrowLeft className="size-3.5" />
@@ -1000,7 +1047,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
                     const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
                     void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
                   }}
-                  className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                  className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.13)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.19)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Plus className="size-3.5" />
@@ -1014,7 +1061,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
                   onClick={() => {
                     void onDeleteNote(previewNote.id);
                   }}
-                  className="rounded-full border border-[rgba(143,76,76,0.28)] bg-[rgba(143,76,76,0.16)] px-3 py-1.5 text-xs text-[#f6e8e8] transition hover:bg-[rgba(143,76,76,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                  className="rounded-full border border-[rgba(143,76,76,0.28)] bg-[rgba(143,76,76,0.12)] px-3 py-1.5 text-xs text-[#f6e8e8] transition hover:bg-[rgba(143,76,76,0.18)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Trash2 className="size-3.5" />
