@@ -213,6 +213,9 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   const hoverPauseRef = useRef(false);
   const activePointersRef = useRef(new Map<number, { x: number; y: number }>());
   const pinchDistanceRef = useRef<number | null>(null);
+  const lastHapticAtRef = useRef(0);
+  const hapticTravelRef = useRef(0);
+  const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node] as const)), [graph.nodes]);
   const adjacency = useMemo(() => buildAdjacency(graph.edges), [graph.edges]);
@@ -455,7 +458,6 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   } as const;
 
   const handleInstall = async () => {
-    const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
     const isAndroid = /android/i.test(window.navigator.userAgent);
 
     if (isStandaloneApp) {
@@ -485,6 +487,23 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     toast.message("Use your browser menu to install this app if the prompt does not appear.");
   };
 
+  const triggerRotationHaptic = (deltaX: number, deltaY: number) => {
+    if (!isMobile || typeof navigator === "undefined" || typeof navigator.vibrate !== "function") {
+      return;
+    }
+
+    hapticTravelRef.current += Math.abs(deltaX) + Math.abs(deltaY);
+    const now = performance.now();
+
+    if (hapticTravelRef.current < 26 || now - lastHapticAtRef.current < 90) {
+      return;
+    }
+
+    navigator.vibrate(8);
+    lastHapticAtRef.current = now;
+    hapticTravelRef.current = 0;
+  };
+
   return (
     <section className="relative h-full min-h-0 overflow-hidden bg-[#050811] max-sm:rounded-none sm:min-h-[90vh] sm:rounded-[32px] sm:border sm:border-white/6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(123,192,255,0.12),transparent_22%),radial-gradient(circle_at_78%_18%,rgba(255,196,120,0.1),transparent_18%),radial-gradient(circle_at_48%_75%,rgba(117,216,190,0.08),transparent_24%),linear-gradient(180deg,rgba(10,15,28,0.82),rgba(4,7,15,0.96))]" />
@@ -496,7 +515,8 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
           <div className="rounded-[24px] border border-white/12 bg-[#030617]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium leading-7 text-white">On iPhone, tap Share and choose Add to Home Screen.</p>
+                <p className="text-sm font-medium leading-7 text-white">To install on iPhone, open Vault in Safari, then tap Safari&apos;s Share button and choose Add to Home Screen.</p>
+                <p className="mt-2 text-xs leading-6 text-white/58">After that, Vault opens from your home screen in standalone app mode, with its own icon and no Safari address bar.</p>
               </div>
               <button
                 type="button"
@@ -522,7 +542,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               }}
               className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-100 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:bg-white/8 sm:px-4 sm:text-sm sm:backdrop-blur-2xl"
             >
-              Install
+              {isIos ? "Install on iPhone" : "Install"}
             </button>
           ) : null}
 
@@ -555,6 +575,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             if (activePointersRef.current.size === 1) {
               draggingRef.current = true;
               pointerRef.current = { x: event.clientX, y: event.clientY };
+              hapticTravelRef.current = 0;
             } else if (activePointersRef.current.size === 2) {
               draggingRef.current = false;
               const points = Array.from(activePointersRef.current.values());
@@ -590,6 +611,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
             setRotationY((value) => value + deltaX * 0.0062);
             setRotationX((value) => clamp(value + deltaY * 0.0042, -0.78, 0.78));
+            triggerRotationHaptic(deltaX, deltaY);
           }}
           onPointerUp={(event) => {
             activePointersRef.current.delete(event.pointerId);
@@ -599,10 +621,12 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             if (activePointersRef.current.size === 0) {
               draggingRef.current = false;
               pointerRef.current = null;
+              hapticTravelRef.current = 0;
             } else if (activePointersRef.current.size === 1) {
               const remaining = Array.from(activePointersRef.current.values())[0] ?? null;
               draggingRef.current = true;
               pointerRef.current = remaining;
+              hapticTravelRef.current = 0;
             }
             event.currentTarget.releasePointerCapture(event.pointerId);
           }}

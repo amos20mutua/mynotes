@@ -1,13 +1,16 @@
 "use client";
 
-import { EditorSelection } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
-import CodeMirror from "@uiw/react-codemirror";
-import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { languages } from "@codemirror/language-data";
-import { oneDark } from "@codemirror/theme-one-dark";
-import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Italic, Link2, List, ListTodo, LoaderCircle, Plus, Quote, ScanText, Trash2, type LucideIcon } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EditorContent, useEditor, type Editor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import Highlight from "@tiptap/extension-highlight";
+import { Markdown } from "@tiptap/markdown";
+import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, Italic, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Plus, Quote, Redo2, ScanText, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RecognizeResult } from "tesseract.js";
 import { Button } from "@/components/ui/button";
@@ -161,82 +164,6 @@ async function preprocessImageForOcr(file: File) {
   });
 }
 
-type MarkdownSelection = {
-  start: number;
-  end: number;
-};
-
-type MarkdownEditResult = {
-  value: string;
-  selectionStart: number;
-  selectionEnd: number;
-};
-
-type MarkdownTool = {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  run: (value: string, selection: MarkdownSelection) => MarkdownEditResult;
-};
-
-function wrapSelection(value: string, selection: MarkdownSelection, before: string, after: string, placeholder: string) {
-  const selectedText = value.slice(selection.start, selection.end);
-  const inner = selectedText || placeholder;
-  const nextValue = `${value.slice(0, selection.start)}${before}${inner}${after}${value.slice(selection.end)}`;
-  const selectionStart = selection.start + before.length;
-  const selectionEnd = selectionStart + inner.length;
-
-  return {
-    value: nextValue,
-    selectionStart,
-    selectionEnd
-  };
-}
-
-function prefixSelectedLines(value: string, selection: MarkdownSelection, prefix: string) {
-  const lineStart = value.lastIndexOf("\n", Math.max(0, selection.start - 1)) + 1;
-  const nextBreak = value.indexOf("\n", selection.end);
-  const lineEnd = nextBreak === -1 ? value.length : nextBreak;
-  const block = value.slice(lineStart, lineEnd);
-  const lines = block.split("\n");
-  const nextBlock = lines.map((line) => `${prefix}${line}`).join("\n");
-
-  return {
-    value: `${value.slice(0, lineStart)}${nextBlock}${value.slice(lineEnd)}`,
-    selectionStart: lineStart,
-    selectionEnd: lineStart + nextBlock.length
-  };
-}
-
-const markdownTools: MarkdownTool[] = [
-  { id: "h1", label: "Heading 1", icon: Heading1, run: (value, selection) => prefixSelectedLines(value, selection, "# ") },
-  { id: "h2", label: "Heading 2", icon: Heading2, run: (value, selection) => prefixSelectedLines(value, selection, "## ") },
-  { id: "bold", label: "Bold", icon: Bold, run: (value, selection) => wrapSelection(value, selection, "**", "**", "Bold text") },
-  { id: "italic", label: "Italic", icon: Italic, run: (value, selection) => wrapSelection(value, selection, "_", "_", "Italic text") },
-  { id: "bullet", label: "Bullet list", icon: List, run: (value, selection) => prefixSelectedLines(value, selection, "- ") },
-  { id: "todo", label: "Checklist", icon: ListTodo, run: (value, selection) => prefixSelectedLines(value, selection, "- [ ] ") },
-  { id: "quote", label: "Quote", icon: Quote, run: (value, selection) => prefixSelectedLines(value, selection, "> ") },
-  {
-    id: "link",
-    label: "Link",
-    icon: Link2,
-    run: (value, selection) => {
-      const selectedText = value.slice(selection.start, selection.end);
-      const text = selectedText || "Link text";
-      const url = "https://example.com";
-      const insertion = `[${text}](${url})`;
-      const valueWithLink = `${value.slice(0, selection.start)}${insertion}${value.slice(selection.end)}`;
-      const urlStart = selection.start + text.length + 3;
-
-      return {
-        value: valueWithLink,
-        selectionStart: urlStart,
-        selectionEnd: urlStart + url.length
-      };
-    }
-  }
-];
-
 function openExistingOrCreateLinkedNote(
   title: string,
   notes: VaultNote[],
@@ -306,8 +233,9 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focusFreshNoteRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
-  const editorViewRef = useRef<EditorView | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedNoteRef = useRef<VaultNote | null>(null);
+  const absorbCapturedNoteRef = useRef<((file: File) => Promise<void>) | null>(null);
 
   const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
   const seedLinks = initialVault.links.length > 0 ? initialVault.links : defaultVaultData.links;
@@ -322,6 +250,14 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     .filter((item): item is { note: VaultNote; timestamp: number } => item.timestamp !== null)
     .sort((left, right) => left.timestamp - right.timestamp)
     .slice(0, isCompact ? 4 : 6);
+  const selectedSchedule = selectedNote?.schedule;
+  const editorTitle = selectedNote && draftNoteId === selectedNote.id ? draftTitle : selectedNote?.title ?? "";
+  const editorContent =
+    selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
+
+  useEffect(() => {
+    selectedNoteRef.current = selectedNote;
+  }, [selectedNote]);
 
   useEffect(() => {
     if (!hasHydratedInitialData) {
@@ -449,6 +385,93 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     }, 420);
   }, [updateNote]);
 
+  const editor = useEditor({
+    immediatelyRender: false,
+    content: editorContent,
+    contentType: "markdown",
+    extensions: [
+      StarterKit.configure({
+        heading: {
+          levels: [1, 2, 3]
+        }
+      }),
+      Underline,
+      Link.configure({
+        autolink: true,
+        openOnClick: false,
+        protocols: ["mailto", "tel"]
+      }),
+      Placeholder.configure({
+        placeholder: "Start writing..."
+      }),
+      TaskList,
+      TaskItem.configure({
+        nested: true
+      }),
+      Highlight,
+      Markdown.configure({
+        indentation: {
+          style: "space",
+          size: 2
+        }
+      })
+    ],
+    editorProps: {
+      attributes: {
+        class: isCompact
+          ? "note-rich-editor prose prose-invert max-w-none min-h-[56vh] px-4 pb-4 pt-1 text-[18px] leading-[1.72] text-white outline-none"
+          : "note-rich-editor prose prose-invert max-w-none min-h-[60vh] px-6 py-5 text-[17px] leading-[1.85] text-white outline-none"
+      },
+      handlePaste: (_view, event) => {
+        const file = Array.from(event.clipboardData?.files ?? []).find((entry): entry is File => entry instanceof File && entry.type.startsWith("image/"));
+
+        if (!file) {
+          return false;
+        }
+
+        event.preventDefault();
+        void absorbCapturedNoteRef.current?.(file);
+        return true;
+      }
+    },
+    onUpdate({ editor: activeEditor }) {
+      const currentNote = selectedNoteRef.current;
+
+      if (!currentNote) {
+        return;
+      }
+
+      const markdown = activeEditor.getMarkdown().replace(/\u00a0/g, " ");
+      setDraftNoteId(currentNote.id);
+      setDraftContent(markdown);
+      void queueSave(currentNote.id, { content: markdown });
+    }
+  });
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    if (!selectedNote) {
+      setDraftNoteId("");
+      setDraftTitle("");
+      setDraftContent("");
+      editor.commands.setContent("", { contentType: "markdown", emitUpdate: false });
+      return;
+    }
+
+    const nextContent = stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
+
+    setDraftNoteId(selectedNote.id);
+    setDraftTitle(selectedNote.title);
+    setDraftContent(nextContent);
+
+    if (editor.getMarkdown() !== nextContent) {
+      editor.commands.setContent(nextContent, { contentType: "markdown", emitUpdate: false });
+    }
+  }, [editor, selectedNote]);
+
   async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
     const initialContent = anchorTitle ? `Linked from [[${anchorTitle}]]\n\n` : "";
@@ -497,7 +520,9 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   }
 
   const absorbCapturedNote = useCallback(async (file: File) => {
-    if (!selectedNote) {
+    const currentNote = selectedNoteRef.current;
+
+    if (!currentNote) {
       return;
     }
 
@@ -539,25 +564,18 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         return;
       }
 
-      const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
-      const selection = editorViewRef.current?.state.selection.main;
-      const selectionStart = selection?.from ?? currentContent.length;
-      const selectionEnd = selection?.to ?? currentContent.length;
-      const prefixNeedsSpacing = selectionStart > 0 && !currentContent.slice(0, selectionStart).endsWith("\n\n");
-      const insertValue = `${prefixNeedsSpacing ? "\n\n" : ""}${importedBlock}`;
-      const nextContent = `${currentContent.slice(0, selectionStart)}${insertValue}${currentContent.slice(selectionEnd)}`;
-      const caretPosition = selectionStart + insertValue.length;
-
-      setDraftNoteId(selectedNote.id);
-      setDraftContent(nextContent);
-      await queueSave(selectedNote.id, { content: nextContent });
-
-      window.requestAnimationFrame(() => {
-        editorViewRef.current?.dispatch({
-          selection: EditorSelection.cursor(caretPosition)
-        });
-        editorViewRef.current?.focus();
-      });
+      if (editor) {
+        const existingMarkdown = editor.getMarkdown().trim();
+        const insertValue = `${existingMarkdown ? "\n\n" : ""}${importedBlock}`;
+        editor.chain().focus().insertContent(insertValue, { contentType: "markdown" }).run();
+      } else {
+        const currentContent = draftNoteId === currentNote.id ? draftContent : stripLeadingTitleHeading(currentNote.title, currentNote.content);
+        const insertValue = `${currentContent.trim() ? "\n\n" : ""}${importedBlock}`;
+        const nextContent = `${currentContent}${insertValue}`;
+        setDraftNoteId(currentNote.id);
+        setDraftContent(nextContent);
+        await queueSave(currentNote.id, { content: nextContent });
+      }
 
       toast.success("Photo converted into note text");
     } catch {
@@ -569,36 +587,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         cameraInputRef.current.value = "";
       }
     }
-  }, [draftContent, draftNoteId, queueSave, selectedNote]);
+  }, [draftContent, draftNoteId, editor, queueSave]);
 
-  function applyMarkdownTool(tool: MarkdownTool) {
-    if (!selectedNote || !editorViewRef.current) {
-      return;
-    }
-
-    const view = editorViewRef.current;
-    const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
-    const result = tool.run(currentContent, {
-      start: view.state.selection.main.from,
-      end: view.state.selection.main.to
-    });
-
-    setDraftNoteId(selectedNote.id);
-    setDraftContent(result.value);
-    void queueSave(selectedNote.id, { content: result.value });
-
-    window.requestAnimationFrame(() => {
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: result.value
-        },
-        selection: EditorSelection.range(result.selectionStart, result.selectionEnd)
-      });
-      view.focus();
-    });
-  }
+  useEffect(() => {
+    absorbCapturedNoteRef.current = absorbCapturedNote;
+  }, [absorbCapturedNote]);
 
   async function openLinkedNote(title: string) {
     try {
@@ -623,63 +616,145 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       }).format(new Date(selectedNote.updatedAt))
     : "";
   const isKeyboardOpen = isCompact && keyboardInset > 0;
-  const editorTitle = selectedNote && draftNoteId === selectedNote.id ? draftTitle : selectedNote?.title ?? "";
-  const editorContent =
-    selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
-  const selectedSchedule = selectedNote?.schedule;
-  const editorExtensions = useMemo(
-    () => [
-      markdown({ base: markdownLanguage, codeLanguages: languages }),
-      EditorView.lineWrapping,
-      EditorView.domEventHandlers({
-        paste: (event) => {
-          const file = Array.from(event.clipboardData?.files ?? []).find((entry): entry is File => entry instanceof File && entry.type.startsWith("image/"));
-          if (!file) {
-            return false;
-          }
 
-          event.preventDefault();
-          void absorbCapturedNote(file);
-          return true;
+  function promptForLink(activeEditor: Editor) {
+    const currentHref = (activeEditor.getAttributes("link").href as string | undefined) ?? "";
+    const provided = window.prompt("Enter a link", currentHref || "https://");
+
+    if (provided === null) {
+      return;
+    }
+
+    const nextHref = provided.trim();
+
+    if (!nextHref) {
+      activeEditor.chain().focus().extendMarkRange("link").unsetLink().run();
+      return;
+    }
+
+    const normalizedHref = /^(https?:|mailto:|tel:)/i.test(nextHref) ? nextHref : `https://${nextHref}`;
+    activeEditor.chain().focus().extendMarkRange("link").setLink({ href: normalizedHref }).run();
+  }
+
+  const editorTools = editor
+    ? [
+        {
+          id: "scan",
+          label: "Scan note photo",
+          icon: ScanText,
+          active: false,
+          tone: "accent" as const,
+          run: () => cameraInputRef.current?.click()
+        },
+        {
+          id: "h1",
+          label: "Heading 1",
+          icon: Heading1,
+          active: editor.isActive("heading", { level: 1 }),
+          run: () => editor.chain().focus().toggleHeading({ level: 1 }).run()
+        },
+        {
+          id: "h2",
+          label: "Heading 2",
+          icon: Heading2,
+          active: editor.isActive("heading", { level: 2 }),
+          run: () => editor.chain().focus().toggleHeading({ level: 2 }).run()
+        },
+        {
+          id: "bold",
+          label: "Bold",
+          icon: Bold,
+          active: editor.isActive("bold"),
+          run: () => editor.chain().focus().toggleBold().run()
+        },
+        {
+          id: "italic",
+          label: "Italic",
+          icon: Italic,
+          active: editor.isActive("italic"),
+          run: () => editor.chain().focus().toggleItalic().run()
+        },
+        {
+          id: "underline",
+          label: "Underline",
+          icon: UnderlineIcon,
+          active: editor.isActive("underline"),
+          run: () => editor.chain().focus().toggleUnderline().run()
+        },
+        {
+          id: "strike",
+          label: "Strikethrough",
+          icon: Strikethrough,
+          active: editor.isActive("strike"),
+          run: () => editor.chain().focus().toggleStrike().run()
+        },
+        {
+          id: "highlight",
+          label: "Highlight",
+          icon: Highlighter,
+          active: editor.isActive("highlight"),
+          run: () => editor.chain().focus().toggleHighlight().run()
+        },
+        {
+          id: "bullet",
+          label: "Bullet list",
+          icon: List,
+          active: editor.isActive("bulletList"),
+          run: () => editor.chain().focus().toggleBulletList().run()
+        },
+        {
+          id: "ordered",
+          label: "Numbered list",
+          icon: ListOrdered,
+          active: editor.isActive("orderedList"),
+          run: () => editor.chain().focus().toggleOrderedList().run()
+        },
+        {
+          id: "todo",
+          label: "Checklist",
+          icon: ListTodo,
+          active: editor.isActive("taskList"),
+          run: () => editor.chain().focus().toggleTaskList().run()
+        },
+        {
+          id: "quote",
+          label: "Quote",
+          icon: Quote,
+          active: editor.isActive("blockquote"),
+          run: () => editor.chain().focus().toggleBlockquote().run()
+        },
+        {
+          id: "divider",
+          label: "Divider",
+          icon: Minus,
+          active: false,
+          run: () => editor.chain().focus().setHorizontalRule().run()
+        },
+        {
+          id: "link",
+          label: "Link",
+          icon: Link2,
+          active: editor.isActive("link"),
+          run: () => promptForLink(editor)
+        },
+        {
+          id: "undo",
+          label: "Undo",
+          icon: Undo2,
+          active: false,
+          disabled: !editor.can().chain().focus().undo().run(),
+          run: () => editor.chain().focus().undo().run()
+        },
+        {
+          id: "redo",
+          label: "Redo",
+          icon: Redo2,
+          active: false,
+          disabled: !editor.can().chain().focus().redo().run(),
+          run: () => editor.chain().focus().redo().run()
         }
-      }),
-      EditorView.theme({
-        "&": {
-          backgroundColor: "transparent",
-          fontSize: isCompact ? "18px" : "17px",
-          height: "100%"
-        },
-        ".cm-scroller": {
-          fontFamily: "inherit",
-          lineHeight: isCompact ? "1.72" : "1.85",
-          padding: isCompact ? "0" : "20px 24px"
-        },
-        ".cm-content": {
-          minHeight: isCompact ? "56vh" : "60vh",
-          padding: isCompact ? "0" : "0"
-        },
-        ".cm-line": {
-          padding: "0"
-        },
-        ".cm-gutters": {
-          display: "none"
-        },
-        ".cm-activeLine": {
-          backgroundColor: "transparent"
-        },
-        ".cm-selectionBackground, .cm-content ::selection": {
-          backgroundColor: "rgba(239,191,114,0.22) !important"
-        },
-        ".cm-cursor, .cm-dropCursor": {
-          borderLeftColor: "#efbf6f"
-        },
-        ".cm-placeholder": {
-          color: "rgba(255,255,255,0.36)"
-        }
-      })
-    ],
-    [absorbCapturedNote, isCompact]
-  );
+      ]
+    : [];
 
   const editorToolbar = (
     <div
@@ -689,43 +764,39 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
           : "flex flex-wrap items-center gap-2 rounded-[24px] border border-white/10 bg-black/20 p-3"
       }
     >
-      <button
-        type="button"
-        onClick={() => cameraInputRef.current?.click()}
-        className={
-          isCompact
-            ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
-            : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-[rgba(239,191,114,0.18)] bg-[rgba(239,191,114,0.1)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.16)]"
-        }
-        aria-label="Scan handwritten or printed notes"
-        title="Scan note photo"
-        disabled={isRecognizingText}
-      >
-        {isRecognizingText ? <LoaderCircle className="size-4 animate-spin" /> : <ScanText className={isCompact ? "size-4.5" : "size-4"} />}
-      </button>
-      {markdownTools.map((tool) => {
+      {editorTools.map((tool) => {
         const Icon = tool.icon;
+        const isActive = tool.active;
+        const isDisabled = Boolean(tool.disabled) || (tool.id === "scan" && isRecognizingText);
+        const isAccent = tool.tone === "accent";
 
         return (
           <button
             key={tool.id}
             type="button"
-            onClick={() => applyMarkdownTool(tool)}
+            onClick={tool.run}
+            disabled={isDisabled}
             className={
-              isCompact
-                ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/88 transition hover:bg-white/12"
-                : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/84 transition hover:bg-white/12"
+              isAccent
+                ? isCompact
+                  ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)] disabled:opacity-60"
+                  : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-[rgba(239,191,114,0.18)] bg-[rgba(239,191,114,0.1)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.16)] disabled:opacity-60"
+                : isActive
+                  ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--accent-blue)] bg-[color:var(--accent-blue-soft)] text-white transition hover:bg-[rgba(154,169,187,0.22)] disabled:opacity-50"
+                  : isCompact
+                    ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/88 transition hover:bg-white/12 disabled:opacity-50"
+                    : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/84 transition hover:bg-white/12 disabled:opacity-50"
             }
             aria-label={tool.label}
             title={tool.label}
           >
-            <Icon className={isCompact ? "size-4.5" : "size-4"} />
+            {tool.id === "scan" && isRecognizingText ? <LoaderCircle className={`${isCompact ? "size-4.5" : "size-4"} animate-spin`} /> : <Icon className={isCompact ? "size-4.5" : "size-4"} />}
           </button>
         );
       })}
       {!isCompact ? (
         <p className="ml-auto text-xs uppercase tracking-[0.22em] text-slate-500">
-          {isRecognizingText ? `Scanning ${(recognitionProgress * 100).toFixed(0)}%` : "Markdown tools"}
+          {isRecognizingText ? `Scanning ${(recognitionProgress * 100).toFixed(0)}%` : "Rich text tools"}
         </p>
       ) : null}
     </div>
@@ -1053,7 +1124,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                   }
 
                   event.preventDefault();
-                  editorViewRef.current?.focus();
+                  editor?.commands.focus("end");
                 }}
                 placeholder="Untitled note"
                 className={
@@ -1079,31 +1150,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                     : undefined
                 }
               >
-                <CodeMirror
-                  value={editorContent}
-                  height="100%"
-                  theme={oneDark}
-                  basicSetup={{
-                    foldGutter: false,
-                    dropCursor: false,
-                    allowMultipleSelections: false,
-                    indentOnInput: true,
-                    lineNumbers: false,
-                    highlightActiveLine: false,
-                    highlightActiveLineGutter: false
-                  }}
-                  extensions={editorExtensions}
-                  placeholder="Write your note in Markdown..."
-                  onCreateEditor={(view) => {
-                    editorViewRef.current = view;
-                  }}
-                  onChange={(value) => {
-                    setDraftNoteId(selectedNote.id);
-                    setDraftContent(value);
-                    void queueSave(selectedNote.id, { content: value });
-                  }}
-                  className={isCompact ? "mobile-note-editor" : undefined}
-                />
+                <EditorContent editor={editor} />
               </div>
 
               {capturePanel}

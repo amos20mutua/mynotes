@@ -191,20 +191,121 @@ textarea {
   cursor: grabbing;
 }
 
-.mobile-note-editor .cm-editor,
-.mobile-note-editor .cm-scroller,
-.mobile-note-editor .cm-content {
-  background: transparent !important;
+.note-rich-editor {
+  caret-color: var(--accent-amber);
+  word-break: break-word;
 }
 
-.mobile-note-editor .cm-scroller {
-  padding-left: 16px !important;
-  padding-right: 16px !important;
+.note-rich-editor:focus {
+  outline: none;
 }
 
-.mobile-note-editor .cm-content {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+.note-rich-editor > *:first-child {
+  margin-top: 0;
+}
+
+.note-rich-editor > *:last-child {
+  margin-bottom: 0;
+}
+
+.note-rich-editor p.is-editor-empty:first-child::before {
+  color: rgba(255, 255, 255, 0.34);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.note-rich-editor h1,
+.note-rich-editor h2,
+.note-rich-editor h3 {
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.note-rich-editor h1 {
+  font-size: 1.55em;
+  line-height: 1.12;
+  margin: 1.2em 0 0.52em;
+}
+
+.note-rich-editor h2 {
+  font-size: 1.24em;
+  line-height: 1.2;
+  margin: 1.05em 0 0.48em;
+}
+
+.note-rich-editor h3 {
+  font-size: 1.06em;
+  line-height: 1.28;
+  margin: 0.95em 0 0.42em;
+}
+
+.note-rich-editor p,
+.note-rich-editor ul,
+.note-rich-editor ol,
+.note-rich-editor blockquote,
+.note-rich-editor hr {
+  margin: 0.72em 0;
+}
+
+.note-rich-editor ul,
+.note-rich-editor ol {
+  padding-left: 1.35em;
+}
+
+.note-rich-editor li + li {
+  margin-top: 0.28em;
+}
+
+.note-rich-editor ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.note-rich-editor ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7em;
+}
+
+.note-rich-editor ul[data-type="taskList"] li > label {
+  margin-top: 0.2em;
+}
+
+.note-rich-editor ul[data-type="taskList"] li > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.note-rich-editor a {
+  color: #d7e4f3;
+  text-decoration: underline;
+  text-decoration-color: rgba(215, 228, 243, 0.48);
+  text-underline-offset: 0.16em;
+}
+
+.note-rich-editor blockquote {
+  border-left: 2px solid rgba(154, 169, 187, 0.44);
+  color: rgba(255, 255, 255, 0.74);
+  padding-left: 1em;
+}
+
+.note-rich-editor mark {
+  background: rgba(239, 191, 114, 0.28);
+  border-radius: 0.35em;
+  color: #fff6e8;
+  padding: 0.02em 0.12em;
+}
+
+.note-rich-editor hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.note-rich-editor .ProseMirror-selectednode {
+  outline: 2px solid rgba(239, 191, 114, 0.32);
 }
 
 @media (display-mode: standalone) {
