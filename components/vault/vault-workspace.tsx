@@ -231,6 +231,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const [isRecognizingText, setIsRecognizingText] = useState(false);
   const [recognitionProgress, setRecognitionProgress] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<{
+    noteId: string;
+    updates: Partial<Pick<VaultNote, "title" | "content" | "schedule">>;
+  } | null>(null);
   const focusFreshNoteRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
@@ -372,13 +376,35 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       return;
     }
 
+    const pending = pendingSaveRef.current;
+    pendingSaveRef.current =
+      pending && pending.noteId === noteId
+        ? {
+            noteId,
+            updates: {
+              ...pending.updates,
+              ...updates
+            }
+          }
+        : {
+            noteId,
+            updates
+          };
+
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
 
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await updateNote(noteId, updates);
+        const nextPending = pendingSaveRef.current;
+
+        if (!nextPending || nextPending.noteId !== noteId) {
+          return;
+        }
+
+        pendingSaveRef.current = null;
+        await updateNote(noteId, nextPending.updates);
       } catch {
         toast.error("Could not save note");
       }
@@ -461,16 +487,21 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       return;
     }
 
+    if (draftNoteId === selectedNote.id) {
+      return;
+    }
+
     const nextContent = stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
+    const nextTitle = focusFreshNoteRef.current && selectedNote.title === "Untitled note" ? "" : selectedNote.title;
 
     setDraftNoteId(selectedNote.id);
-    setDraftTitle(selectedNote.title);
+    setDraftTitle(nextTitle);
     setDraftContent(nextContent);
 
     if (editor.getMarkdown() !== nextContent) {
       editor.commands.setContent(nextContent, { contentType: "markdown", emitUpdate: false });
     }
-  }, [editor, selectedNote]);
+  }, [draftNoteId, editor, selectedNote]);
 
   async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
