@@ -1,7 +1,13 @@
 "use client";
 
+import { EditorSelection } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import CodeMirror from "@uiw/react-codemirror";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import { oneDark } from "@codemirror/theme-one-dark";
 import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Italic, Link2, List, ListTodo, LoaderCircle, Plus, Quote, ScanText, Trash2, type LucideIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RecognizeResult } from "tesseract.js";
 import { Button } from "@/components/ui/button";
@@ -9,7 +15,6 @@ import { Card } from "@/components/ui/card";
 import { GraphErrorBoundary } from "@/components/vault/graph-error-boundary";
 import { GraphView } from "@/components/vault/graph-view";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { defaultVaultData } from "@/lib/vault/default-vault";
 import { getBacklinks, normalizeTitle } from "@/lib/vault/graph";
 import { getSelectedNote, useVaultStore } from "@/lib/state/use-vault-store";
@@ -17,6 +22,10 @@ import type { VaultData, VaultNote, VaultNoteSchedule } from "@/types";
 
 type VaultWorkspaceProps = {
   initialVault: VaultData;
+};
+
+type DetectedTextBlock = {
+  rawValue: string;
 };
 
 function formatUpdatedAt(value: string) {
@@ -108,6 +117,48 @@ function buildImportedTextBlock(text: string) {
   }).format(new Date());
 
   return cleaned ? `## Imported from camera\n\n_Captured ${timestamp}_\n\n${cleaned}\n\n` : "";
+}
+
+async function preprocessImageForOcr(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const targetWidth = Math.min(1800, Math.max(1200, bitmap.width));
+  const scale = targetWidth / bitmap.width;
+  const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    bitmap.close();
+    return file;
+  }
+
+  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  bitmap.close();
+
+  const imageData = context.getImageData(0, 0, targetWidth, targetHeight);
+  const { data } = imageData;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const grayscale = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    const normalized = grayscale > 172 ? 255 : grayscale < 84 ? 0 : Math.min(255, Math.max(0, (grayscale - 84) * 2.6));
+    data[index] = normalized;
+    data[index + 1] = normalized;
+    data[index + 2] = normalized;
+  }
+
+  context.putImageData(imageData, 0, 0);
+
+  return new Promise<File>((resolve) => {
+    canvas.toBlob(
+      (blob) => {
+        resolve(blob ? new File([blob], file.name || "scan.jpg", { type: "image/png" }) : file);
+      },
+      "image/png",
+      1
+    );
+  });
 }
 
 type MarkdownSelection = {
@@ -255,7 +306,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const focusFreshNoteRef = useRef(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editorViewRef = useRef<EditorView | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
@@ -380,7 +431,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     return () => window.cancelAnimationFrame(frame);
   }, [activeView, selectedNote?.id]);
 
-  async function queueSave(noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "schedule">>) {
+  const queueSave = useCallback(async (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "schedule">>) => {
     if (!noteId) {
       return;
     }
@@ -396,7 +447,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         toast.error("Could not save note");
       }
     }, 420);
-  }
+  }, [updateNote]);
 
   async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
@@ -445,7 +496,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     }
   }
 
-  async function absorbCapturedNote(file: File) {
+  const absorbCapturedNote = useCallback(async (file: File) => {
     if (!selectedNote) {
       return;
     }
@@ -453,27 +504,45 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     try {
       setIsRecognizingText(true);
       setRecognitionProgress(0.06);
+      const preparedFile = await preprocessImageForOcr(file);
+      let extractedText = "";
 
-      const { recognize } = await import("tesseract.js");
-      const result = (await recognize(file, "eng", {
-        logger: (message) => {
-          if (message.status === "recognizing text" && typeof message.progress === "number") {
-            setRecognitionProgress(0.12 + message.progress * 0.82);
-          }
+      if ("TextDetector" in window) {
+        try {
+          const detector = new (window as Window & { TextDetector: new () => { detect: (source: ImageBitmapSource) => Promise<DetectedTextBlock[]> } }).TextDetector();
+          const bitmap = await createImageBitmap(preparedFile);
+          const blocks = await detector.detect(bitmap);
+          bitmap.close();
+          extractedText = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join("\n");
+          setRecognitionProgress(0.72);
+        } catch {
+          extractedText = "";
         }
-      })) as RecognizeResult;
+      }
 
-      const importedBlock = buildImportedTextBlock(result.data.text);
+      if (!extractedText) {
+        const { recognize } = await import("tesseract.js");
+        const result = (await recognize(preparedFile, "eng", {
+          logger: (message) => {
+            if (message.status === "recognizing text" && typeof message.progress === "number") {
+              setRecognitionProgress(0.16 + message.progress * 0.78);
+            }
+          }
+        })) as RecognizeResult;
+        extractedText = result.data.text;
+      }
+
+      const importedBlock = buildImportedTextBlock(extractedText);
 
       if (!importedBlock) {
         toast.error("No readable text was found in that photo");
         return;
       }
 
-      const textarea = textareaRef.current;
       const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
-      const selectionStart = textarea?.selectionStart ?? currentContent.length;
-      const selectionEnd = textarea?.selectionEnd ?? currentContent.length;
+      const selection = editorViewRef.current?.state.selection.main;
+      const selectionStart = selection?.from ?? currentContent.length;
+      const selectionEnd = selection?.to ?? currentContent.length;
       const prefixNeedsSpacing = selectionStart > 0 && !currentContent.slice(0, selectionStart).endsWith("\n\n");
       const insertValue = `${prefixNeedsSpacing ? "\n\n" : ""}${importedBlock}`;
       const nextContent = `${currentContent.slice(0, selectionStart)}${insertValue}${currentContent.slice(selectionEnd)}`;
@@ -484,8 +553,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       await queueSave(selectedNote.id, { content: nextContent });
 
       window.requestAnimationFrame(() => {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(caretPosition, caretPosition);
+        editorViewRef.current?.dispatch({
+          selection: EditorSelection.cursor(caretPosition)
+        });
+        editorViewRef.current?.focus();
       });
 
       toast.success("Photo converted into note text");
@@ -498,18 +569,18 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         cameraInputRef.current.value = "";
       }
     }
-  }
+  }, [draftContent, draftNoteId, queueSave, selectedNote]);
 
   function applyMarkdownTool(tool: MarkdownTool) {
-    if (!selectedNote || !textareaRef.current) {
+    if (!selectedNote || !editorViewRef.current) {
       return;
     }
 
-    const textarea = textareaRef.current;
+    const view = editorViewRef.current;
     const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
     const result = tool.run(currentContent, {
-      start: textarea.selectionStart,
-      end: textarea.selectionEnd
+      start: view.state.selection.main.from,
+      end: view.state.selection.main.to
     });
 
     setDraftNoteId(selectedNote.id);
@@ -517,8 +588,15 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     void queueSave(selectedNote.id, { content: result.value });
 
     window.requestAnimationFrame(() => {
-      textarea.focus();
-      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+      view.dispatch({
+        changes: {
+          from: 0,
+          to: view.state.doc.length,
+          insert: result.value
+        },
+        selection: EditorSelection.range(result.selectionStart, result.selectionEnd)
+      });
+      view.focus();
     });
   }
 
@@ -549,6 +627,59 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const editorContent =
     selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
   const selectedSchedule = selectedNote?.schedule;
+  const editorExtensions = useMemo(
+    () => [
+      markdown({ base: markdownLanguage, codeLanguages: languages }),
+      EditorView.lineWrapping,
+      EditorView.domEventHandlers({
+        paste: (event) => {
+          const file = Array.from(event.clipboardData?.files ?? []).find((entry): entry is File => entry instanceof File && entry.type.startsWith("image/"));
+          if (!file) {
+            return false;
+          }
+
+          event.preventDefault();
+          void absorbCapturedNote(file);
+          return true;
+        }
+      }),
+      EditorView.theme({
+        "&": {
+          backgroundColor: "transparent",
+          fontSize: isCompact ? "18px" : "17px",
+          height: "100%"
+        },
+        ".cm-scroller": {
+          fontFamily: "inherit",
+          lineHeight: isCompact ? "1.72" : "1.85",
+          padding: isCompact ? "0" : "20px 24px"
+        },
+        ".cm-content": {
+          minHeight: isCompact ? "56vh" : "60vh",
+          padding: isCompact ? "0" : "0"
+        },
+        ".cm-line": {
+          padding: "0"
+        },
+        ".cm-gutters": {
+          display: "none"
+        },
+        ".cm-activeLine": {
+          backgroundColor: "transparent"
+        },
+        ".cm-selectionBackground, .cm-content ::selection": {
+          backgroundColor: "rgba(239,191,114,0.22) !important"
+        },
+        ".cm-cursor, .cm-dropCursor": {
+          borderLeftColor: "#efbf6f"
+        },
+        ".cm-placeholder": {
+          color: "rgba(255,255,255,0.36)"
+        }
+      })
+    ],
+    [absorbCapturedNote, isCompact]
+  );
 
   const editorToolbar = (
     <div
@@ -778,7 +909,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
   if (activeView === "vault") {
     return (
-      <div className="mx-auto h-dvh max-w-[1800px] overflow-hidden px-0 py-0 sm:px-3 sm:py-3 lg:px-4">
+      <div className="mx-auto h-[100svh] min-h-[100svh] max-w-[1800px] overflow-hidden px-0 py-0 sm:h-dvh sm:min-h-0 sm:px-3 sm:py-3 lg:px-4">
         <GraphErrorBoundary
           fallback={
             <Card className="flex min-h-[70vh] flex-col items-center justify-center gap-4 p-8 text-center">
@@ -916,39 +1047,29 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                   setDraftTitle(nextTitle);
                   void queueSave(selectedNote.id, { title: nextTitle });
                 }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  editorViewRef.current?.focus();
+                }}
                 placeholder="Untitled note"
                 className={
                   isCompact
-                    ? "mt-3 h-auto border-0 bg-transparent px-0 py-0 text-[34px] font-semibold leading-[1.05] text-white shadow-none focus:border-0"
+                    ? "mt-2 h-auto border-0 bg-transparent px-0 py-0 text-[34px] font-semibold leading-[1.05] text-white shadow-none focus:border-0"
                     : "h-16 rounded-[28px] border-white/10 bg-white/[0.04] text-3xl font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]"
                 }
               />
 
               {!isCompact ? editorToolbar : null}
 
-              <Textarea
-                ref={textareaRef}
-                value={editorContent}
-                onChange={(event) => {
-                  const nextContent = event.target.value;
-                  setDraftNoteId(selectedNote.id);
-                  setDraftContent(nextContent);
-                  void queueSave(selectedNote.id, { content: nextContent });
-                }}
-                onPaste={(event) => {
-                  const file = Array.from(event.clipboardData.files).find((entry) => entry.type.startsWith("image/"));
-                  if (!file) {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  void absorbCapturedNote(file);
-                }}
-                placeholder="Write your note in Markdown..."
+              <div
                 className={
                   isCompact
-                    ? "mt-6 min-h-[56vh] resize-none border-0 bg-transparent px-0 py-0 text-[18px] leading-[1.72] text-white/92 shadow-none focus:border-0"
-                    : "min-h-[60vh] resize-none rounded-[32px] border-white/10 bg-black/20 px-6 py-5 text-[17px] leading-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                    ? "-mx-4 mt-3 rounded-none border border-white/0 bg-transparent"
+                    : "min-h-[60vh] rounded-[32px] border border-white/10 bg-black/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                 }
                 style={
                   isCompact
@@ -957,7 +1078,33 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                       }
                     : undefined
                 }
-              />
+              >
+                <CodeMirror
+                  value={editorContent}
+                  height="100%"
+                  theme={oneDark}
+                  basicSetup={{
+                    foldGutter: false,
+                    dropCursor: false,
+                    allowMultipleSelections: false,
+                    indentOnInput: true,
+                    lineNumbers: false,
+                    highlightActiveLine: false,
+                    highlightActiveLineGutter: false
+                  }}
+                  extensions={editorExtensions}
+                  placeholder="Write your note in Markdown..."
+                  onCreateEditor={(view) => {
+                    editorViewRef.current = view;
+                  }}
+                  onChange={(value) => {
+                    setDraftNoteId(selectedNote.id);
+                    setDraftContent(value);
+                    void queueSave(selectedNote.id, { content: value });
+                  }}
+                  className={isCompact ? "mobile-note-editor" : undefined}
+                />
+              </div>
 
               {capturePanel}
 

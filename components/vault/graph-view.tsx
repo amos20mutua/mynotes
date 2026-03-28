@@ -486,7 +486,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   };
 
   return (
-    <section className="relative min-h-[100dvh] overflow-hidden rounded-[32px] border border-white/6 bg-[#050811] sm:min-h-[90vh]">
+    <section className="relative h-full min-h-0 overflow-hidden bg-[#050811] max-sm:rounded-none sm:min-h-[90vh] sm:rounded-[32px] sm:border sm:border-white/6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(123,192,255,0.12),transparent_22%),radial-gradient(circle_at_78%_18%,rgba(255,196,120,0.1),transparent_18%),radial-gradient(circle_at_48%_75%,rgba(117,216,190,0.08),transparent_24%),linear-gradient(180deg,rgba(10,15,28,0.82),rgba(4,7,15,0.96))]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:180px_180px]" />
       <div className="pointer-events-none absolute inset-x-[8%] top-[20%] h-[42%] rounded-full bg-[radial-gradient(circle,rgba(120,150,255,0.1),transparent_66%)] blur-3xl" />
@@ -777,6 +777,19 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                   {isMobile ? "Open" : "Open note"}
                 </span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+                  void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
+                }}
+                className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.24)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Plus className="size-3.5" />
+                  {isCreating ? "Opening..." : "New"}
+                </span>
+              </button>
               {previewNote && !isMobile ? (
                 <button
                   type="button"
@@ -792,22 +805,6 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 </button>
               ) : null}
             </div>
-          </div>
-
-          <div className="mt-2 flex justify-center">
-            <button
-              type="button"
-              onClick={() => {
-                const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-                void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
-              }}
-              className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-4 py-2 text-xs font-medium text-[#fff4de] shadow-[0_16px_40px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Plus className="size-3.5" />
-                {isCreating ? "Opening..." : "New"}
-              </span>
-            </button>
           </div>
         </div>
       ) : (
