@@ -412,6 +412,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   }, [nodeById, noteNodeIdByNoteId, searchMatches]);
 
   const activeNodeId = hoveredNodeId ?? searchMatchNode?.id ?? lockedNodeId ?? ROOT_NODE_ID;
+  const previewNodeId = lockedNodeId ?? searchMatchNode?.id ?? ROOT_NODE_ID;
   const neighborhoodDepths = useMemo(() => buildDepthMap(activeNodeId, adjacency), [activeNodeId, adjacency]);
   const neighborhood = useMemo(() => new Set(neighborhoodDepths.keys()), [neighborhoodDepths]);
 
@@ -536,7 +537,16 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
     return ids;
   }, [query, searchMatchNode, searchMatchStrengthByNodeId, visibleNodeIds]);
 
-  const previewNode = activeNodeId ? nodeById.get(activeNodeId) ?? null : null;
+  useEffect(() => {
+    if (selectedNote) {
+      setLockedNodeId(`note:${selectedNote.id}`);
+      return;
+    }
+
+    setLockedNodeId((current) => current ?? ROOT_NODE_ID);
+  }, [selectedNote]);
+
+  const previewNode = previewNodeId ? nodeById.get(previewNodeId) ?? null : null;
   const previewNote = previewNode?.noteId ? notes.find((note) => note.id === previewNode.noteId) ?? null : null;
 
   const connectedNotes = useMemo(() => {
@@ -1097,32 +1107,30 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
               ) : null}
             </div>
 
-            <div className="mt-auto flex flex-wrap gap-2 pt-3 max-sm:pt-2">
+            <div className="mt-auto grid w-full grid-cols-2 gap-2 pt-3 max-sm:pt-2">
               <button
                 type="button"
                 onClick={handlePanelOpen}
-                className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
+                className="flex w-full items-center justify-center rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] px-3 py-1.5 text-xs text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)] max-sm:px-2.5 max-sm:py-1.5 max-sm:text-[10px]"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <ArrowLeft className="size-3.5" />
-                  {mode === "public" ? (isMobile ? "Read" : "Read note") : isMobile ? "Open" : "Open note"}
+                  {isMobile ? "Open" : "Open note"}
                 </span>
               </button>
-              {mode === "private" ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-                    void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
-                  }}
-                  className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.13)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.19)] max-sm:px-2.5 max-sm:py-1 max-sm:text-[10px]"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <Plus className="size-3.5" />
-                    {isCreating ? "Opening..." : "New"}
-                  </span>
-                </button>
-              ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+                  void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
+                }}
+                className="flex w-full items-center justify-center rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.13)] px-3 py-1.5 text-xs font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.19)] max-sm:px-2.5 max-sm:py-1.5 max-sm:text-[10px]"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <Plus className="size-3.5" />
+                  {isCreating ? "Opening..." : "New"}
+                </span>
+              </button>
               {mode === "private" && previewNote && !isMobile ? (
                 <button
                   type="button"
@@ -1145,21 +1153,19 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
           style={isMobile ? { bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)" } : undefined}
           className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2 sm:bottom-4"
         >
-          {mode === "private" ? (
-            <button
-              type="button"
-              onClick={() => {
-                const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-                void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
-              }}
-              className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Plus className="size-4" />
-                {isCreating ? "Opening..." : "New"}
-              </span>
-            </button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
+              void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
+            }}
+            className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus className="size-4" />
+              {isCreating ? "Opening..." : "New"}
+            </span>
+          </button>
         </div>
       )}
 

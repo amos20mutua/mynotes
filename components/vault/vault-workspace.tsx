@@ -2180,7 +2180,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                         : "rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.12)] px-3.5 py-2 text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
                     }
                   >
-                    Edit your copy
+                    Edit
                   </button>
                 ) : null}
                 {!isReadOnly ? (
