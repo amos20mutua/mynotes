@@ -9,7 +9,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
 import { Markdown } from "@tiptap/markdown";
-import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, History, Italic, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Plus, Quote, Redo2, ScanText, Sparkles, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from "lucide-react";
+import { ArrowLeft, Bold, BriefcaseBusiness, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, History, Italic, Lightbulb, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Microscope, Plus, Quote, Redo2, Sparkles, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2, Users, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RecognizeResult } from "tesseract.js";
@@ -21,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { defaultVaultData } from "@/lib/vault/default-vault";
 import { getBacklinks, normalizeTitle } from "@/lib/vault/graph";
 import { getSelectedNote, useVaultStore } from "@/lib/state/use-vault-store";
-import type { VaultData, VaultNote, VaultNoteSchedule } from "@/types";
+import type { VaultData, VaultNote, VaultNoteClusterMode, VaultNoteSchedule, VaultNoteSnapshot } from "@/types";
 
 type VaultWorkspaceProps = {
   initialVault: VaultData;
@@ -37,6 +37,31 @@ type SemanticRelatedNote = {
   reasons: string[];
 };
 
+type OcrCandidate = {
+  source: "native" | "tesseract";
+  variant: string;
+  text: string;
+  confidence: number;
+  quality: number;
+};
+
+type ExtractedAction = {
+  kind: "task" | "schedule" | "followup";
+  label: string;
+  detail: string;
+  line: string;
+  date?: string;
+};
+
+type WritingPrompt = {
+  id: string;
+  label: string;
+  detail: string;
+  action: "link" | "cluster" | "schedule";
+  target?: string;
+  clusterMode?: VaultNoteClusterMode;
+};
+
 const STOP_WORDS = new Set([
   "the", "and", "for", "with", "that", "this", "from", "into", "your", "have", "will", "about", "there", "their",
   "them", "they", "then", "than", "when", "where", "what", "which", "while", "were", "been", "being", "also",
@@ -45,6 +70,13 @@ const STOP_WORDS = new Set([
   "because", "should", "could", "would", "start", "write", "writing", "make", "made", "make", "keep", "keeps",
   "than", "then", "still", "same", "many", "each", "every", "other", "those", "these"
 ]);
+
+const CLUSTER_MODES: Array<{ id: VaultNoteClusterMode; label: string; icon: typeof Lightbulb }> = [
+  { id: "ideas", label: "Ideas", icon: Lightbulb },
+  { id: "projects", label: "Projects", icon: BriefcaseBusiness },
+  { id: "people", label: "People", icon: Users },
+  { id: "research", label: "Research", icon: Microscope }
+];
 
 function formatUpdatedAt(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -112,7 +144,7 @@ function cleanRecognizedNoteText(raw: string) {
       previous.length > 0 &&
       previous.length < 72 &&
       !/[.!?:)]$/.test(previous) &&
-      !/^[-*•#>\d]/.test(line) &&
+      !/^[-*#>\d]/.test(line) &&
       !/^[A-Z\s]{4,}$/.test(line)
     ) {
       merged[merged.length - 1] = `${previous} ${line}`;
@@ -123,6 +155,61 @@ function cleanRecognizedNoteText(raw: string) {
   }
 
   return merged.join("\n");
+}
+
+function scoreRecognizedTextQuality(text: string, confidence = 0) {
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    return 0;
+  }
+
+  const letters = (trimmed.match(/[A-Za-z]/g) ?? []).length;
+  const digits = (trimmed.match(/\d/g) ?? []).length;
+  const symbols = (trimmed.match(/[^A-Za-z0-9\s.,:;!?()[\]'"/-]/g) ?? []).length;
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const meaningfulWords = words.filter((word) => /[A-Za-z]{2,}/.test(word));
+  const longWords = meaningfulWords.filter((word) => word.length >= 4);
+  const gibberishWords = words.filter((word) => {
+    const cleaned = word.replace(/[^A-Za-z]/g, "");
+    return cleaned.length >= 4 && !/[aeiou]/i.test(cleaned) && !/[lrstn]/i.test(cleaned);
+  });
+  const lineCount = trimmed.split("\n").filter(Boolean).length;
+  const alphaRatio = letters / Math.max(trimmed.length, 1);
+  const meaningfulRatio = meaningfulWords.length / Math.max(words.length, 1);
+  const longWordRatio = longWords.length / Math.max(words.length, 1);
+  const symbolPenalty = symbols / Math.max(trimmed.length, 1);
+  const gibberishPenalty = gibberishWords.length / Math.max(words.length, 1);
+  const digitPenalty = digits / Math.max(trimmed.length, 1);
+
+  return confidence * 0.42 + alphaRatio * 100 + meaningfulRatio * 80 + longWordRatio * 36 + lineCount * 2 - symbolPenalty * 160 - gibberishPenalty * 120 - digitPenalty * 35;
+}
+
+function extractConfidentOcrText(result: RecognizeResult) {
+  const rawLines = ((result.data as RecognizeResult["data"] & { lines?: Array<{ text: string; confidence?: number }> }).lines ?? []);
+  const lines = rawLines
+    .map((line) => {
+      const text = line.text.replace(/\s+/g, " ").trim();
+      return {
+        text,
+        confidence: line.confidence ?? 0
+      };
+    })
+    .filter((line) => {
+      if (!line.text) {
+        return false;
+      }
+
+      const alphaRatio = (line.text.match(/[A-Za-z]/g) ?? []).length / Math.max(line.text.length, 1);
+      const symbolRatio = (line.text.match(/[^A-Za-z0-9\s.,:;!?()[\]'"/-]/g) ?? []).length / Math.max(line.text.length, 1);
+      return line.confidence >= 38 && alphaRatio >= 0.28 && symbolRatio <= 0.18;
+    });
+
+  if (lines.length > 0) {
+    return lines.map((line) => line.text).join("\n");
+  }
+
+  return result.data.text;
 }
 
 function tokenizeMeaningfulText(value: string) {
@@ -243,16 +330,16 @@ function structureRecognizedNoteText(raw: string) {
   for (const line of lines) {
     const normalized = line.replace(/\s+/g, " ").trim();
     const isLikelyHeading = /^[A-Z][A-Za-z0-9 ,:'"()/-]{3,48}$/.test(normalized) && !/[.!?]$/.test(normalized);
-    const isLikelyBullet = /^[-*•]/.test(normalized) || /^\d+[.)]/.test(normalized);
+    const isLikelyBullet = /^[-*]/.test(normalized) || /^\d+[.)]/.test(normalized);
 
     if (!hasInsertedHeading && isLikelyHeading) {
-      structured.push(`### ${normalized.replace(/^[-*•]\s*/, "")}`);
+      structured.push(`### ${normalized.replace(/^[-*]\s*/, "")}`);
       hasInsertedHeading = true;
       continue;
     }
 
     if (isLikelyBullet) {
-      structured.push(`- ${normalized.replace(/^([-*•]|\d+[.)])\s*/, "")}`);
+      structured.push(`- ${normalized.replace(/^([-*]|\d+[.)])\s*/, "")}`);
       continue;
     }
 
@@ -277,6 +364,196 @@ function buildImportedTextBlock(text: string) {
   }).format(new Date());
 
   return cleaned ? `## Imported from camera\n\n_Captured ${timestamp}_\n\n${cleaned}\n\n` : "";
+}
+
+function shortNoteExcerpt(content: string) {
+  const compact = content.replace(/^#.*$/gm, "").replace(/\[\[([^\]]+)\]\]/g, "$1").replace(/\s+/g, " ").trim();
+  return compact ? compact.slice(0, 120) : "Empty note.";
+}
+
+function inferClusterModeFromNote(note: VaultNote): VaultNoteClusterMode {
+  if (note.clusterMode) {
+    return note.clusterMode;
+  }
+
+  const combined = `${note.folder ?? ""} ${note.colorGroup ?? ""} ${(note.tags ?? []).join(" ")} ${note.title}`.toLowerCase();
+
+  if (/(project|launch|roadmap|ops|workflow|sprint|quarter)/.test(combined)) {
+    return "projects";
+  }
+
+  if (/(relationship|people|person|meeting|personal|life|health|home|finance|fitness)/.test(combined)) {
+    return "people";
+  }
+
+  if (/(research|learning|reference|question|graph|knowledge|system|reading|prompt|design)/.test(combined)) {
+    return "research";
+  }
+
+  return "ideas";
+}
+
+function startOfToday() {
+  const value = new Date();
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function parseActionDate(value: string) {
+  const normalized = value.toLowerCase();
+  const today = startOfToday();
+
+  if (normalized.includes("today")) {
+    return today.toISOString().slice(0, 10);
+  }
+
+  if (normalized.includes("tomorrow")) {
+    today.setDate(today.getDate() + 1);
+    return today.toISOString().slice(0, 10);
+  }
+
+  if (normalized.includes("next week")) {
+    today.setDate(today.getDate() + 7);
+    return today.toISOString().slice(0, 10);
+  }
+
+  const weekdayMatch = normalized.match(/\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/);
+
+  if (weekdayMatch) {
+    const names = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const targetDay = names.indexOf(weekdayMatch[1]);
+    const currentDay = today.getDay();
+    const delta = ((targetDay - currentDay + 7) % 7) || 7;
+    today.setDate(today.getDate() + delta);
+    return today.toISOString().slice(0, 10);
+  }
+
+  const isoDateMatch = normalized.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  return isoDateMatch?.[1];
+}
+
+function extractActionSuggestions(note: VaultNote | null) {
+  if (!note) {
+    return [];
+  }
+
+  const lines = note.content.split("\n").map((line) => line.trim()).filter(Boolean);
+  const actions: ExtractedAction[] = [];
+
+  for (const line of lines) {
+    const plainLine = line.replace(/^[-*]\s*/, "").trim();
+
+    if (/^(todo|task|follow up|follow-up|remember|send|call|email|finish|review|schedule|plan|build|connect|capture|draft)\b/i.test(plainLine)) {
+      actions.push({
+        kind: "task",
+        label: "Turn into checklist item",
+        detail: plainLine,
+        line: plainLine
+      });
+    }
+
+    const detectedDate = parseActionDate(plainLine);
+    if (detectedDate) {
+      actions.push({
+        kind: "schedule",
+        label: "Schedule this note",
+        detail: detectedDate,
+        line: plainLine,
+        date: detectedDate
+      });
+    }
+
+    if (/\b(expand|explore|follow up|question|idea|investigate)\b/i.test(plainLine) && plainLine.length > 18) {
+      actions.push({
+        kind: "followup",
+        label: "Create follow-up note",
+        detail: plainLine,
+        line: plainLine
+      });
+    }
+  }
+
+  return actions.slice(0, 6);
+}
+
+function buildWritingPrompts(note: VaultNote | null, notes: VaultNote[]) {
+  if (!note) {
+    return [];
+  }
+
+  const prompts: WritingPrompt[] = [];
+  const combined = `${note.title}\n${note.content}`.toLowerCase();
+
+  const linkCandidate = notes.find((entry) => {
+    if (entry.id === note.id) {
+      return false;
+    }
+
+    const normalizedTitle = entry.title.toLowerCase();
+    return combined.includes(normalizedTitle) && !note.content.includes(`[[${entry.title}]]`);
+  });
+
+  if (linkCandidate) {
+    prompts.push({
+      id: `link:${linkCandidate.id}`,
+      label: `Link this to ${linkCandidate.title}`,
+      detail: "You mention this note already. Turn it into a living connection.",
+      action: "link",
+      target: linkCandidate.title
+    });
+  }
+
+  if (/\b(ship|launch|roadmap|deliver|milestone|build|project)\b/i.test(combined)) {
+    prompts.push({
+      id: "cluster:projects",
+      label: "This looks like a project",
+      detail: "Shift this note into the Projects mode for stronger structure.",
+      action: "cluster",
+      clusterMode: "projects"
+    });
+  }
+
+  if (/\b(question|research|investigate|compare|study|explore|why)\b/i.test(combined)) {
+    prompts.push({
+      id: "cluster:research",
+      label: "This reads like research",
+      detail: "Mark it as Research so related notes gather around it.",
+      action: "cluster",
+      clusterMode: "research"
+    });
+  }
+
+  if (/\b(tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)\b/i.test(combined)) {
+    prompts.push({
+      id: "schedule:detected",
+      label: "This note mentions a time",
+      detail: "Pull the timing into the schedule section so it stays actionable.",
+      action: "schedule"
+    });
+  }
+
+  return prompts.slice(0, 4);
+}
+
+function buildDailyMemory(notes: VaultNote[], selectedNote: VaultNote | null) {
+  if (!selectedNote) {
+    return [];
+  }
+
+  const selectedTokens = new Set(pickTopTokens(`${selectedNote.title} ${selectedNote.content}`, 8));
+
+  return notes
+    .filter((note) => note.id !== selectedNote.id)
+    .map((note) => {
+      const overlap = pickTopTokens(`${note.title} ${note.content}`, 8).filter((token) => selectedTokens.has(token));
+      return {
+        note,
+        overlap
+      };
+    })
+    .filter((entry) => entry.overlap.length > 0 && new Date(entry.note.updatedAt).getTime() < new Date(selectedNote.updatedAt).getTime())
+    .sort((left, right) => new Date(right.note.updatedAt).getTime() - new Date(left.note.updatedAt).getTime())
+    .slice(0, 4);
 }
 
 async function preprocessImageForOcr(file: File) {
@@ -314,6 +591,50 @@ async function preprocessImageForOcr(file: File) {
     canvas.toBlob(
       (blob) => {
         resolve(blob ? new File([blob], file.name || "scan.jpg", { type: "image/png" }) : file);
+      },
+      "image/png",
+      1
+    );
+  });
+}
+
+async function createHighContrastOcrVariant(file: File) {
+  const bitmap = await createImageBitmap(file);
+  const targetWidth = Math.min(2200, Math.max(1600, bitmap.width));
+  const scale = targetWidth / bitmap.width;
+  const targetHeight = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    bitmap.close();
+    return file;
+  }
+
+  context.filter = "grayscale(1) contrast(1.38) brightness(1.06)";
+  context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+  context.filter = "none";
+  bitmap.close();
+
+  const imageData = context.getImageData(0, 0, targetWidth, targetHeight);
+  const { data } = imageData;
+
+  for (let index = 0; index < data.length; index += 4) {
+    const grayscale = data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114;
+    const boosted = grayscale > 188 ? 255 : grayscale < 92 ? 0 : Math.round((grayscale - 92) * 2.65);
+    data[index] = boosted;
+    data[index + 1] = boosted;
+    data[index + 2] = boosted;
+  }
+
+  context.putImageData(imageData, 0, 0);
+
+  return new Promise<File>((resolve) => {
+    canvas.toBlob(
+      (blob) => {
+        resolve(blob ? new File([blob], file.name || "scan-contrast.png", { type: "image/png" }) : file);
       },
       "image/png",
       1
@@ -387,6 +708,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const [draftContent, setDraftContent] = useState("");
   const [isRecognizingText, setIsRecognizingText] = useState(false);
   const [recognitionProgress, setRecognitionProgress] = useState(0);
+  const [graphClusterMode, setGraphClusterMode] = useState<"all" | VaultNoteClusterMode>("all");
+  const [selectedSnapshotIndex, setSelectedSnapshotIndex] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<{
     noteId: string;
@@ -397,6 +720,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const selectedNoteRef = useRef<VaultNote | null>(null);
   const absorbCapturedNoteRef = useRef<((file: File) => Promise<void>) | null>(null);
+  const schedulePanelRef = useRef<HTMLDivElement | null>(null);
+  const semanticPanelRef = useRef<HTMLDivElement | null>(null);
+  const actionsPanelRef = useRef<HTMLDivElement | null>(null);
+  const memoryPanelRef = useRef<HTMLDivElement | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; time: number; allowGesture: boolean } | null>(null);
 
   const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
   const seedLinks = initialVault.links.length > 0 ? initialVault.links : defaultVaultData.links;
@@ -417,6 +745,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
   const semanticRelatedNotes = buildSemanticRelatedNotes(effectiveNotes, selectedNote, backlinks);
   const recentTrailNotes = buildRecentTrail(effectiveNotes, selectedNote);
+  const extractedActions = extractActionSuggestions(selectedNote);
+  const writingPrompts = buildWritingPrompts(selectedNote, effectiveNotes);
+  const dailyMemoryNotes = buildDailyMemory(effectiveNotes, selectedNote);
+  const selectedSnapshots = selectedNote?.snapshots ?? [];
 
   useEffect(() => {
     selectedNoteRef.current = selectedNote;
@@ -724,7 +1056,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       setIsRecognizingText(true);
       setRecognitionProgress(0.06);
       const preparedFile = await preprocessImageForOcr(file);
-      let extractedText = "";
+      const contrastFile = await createHighContrastOcrVariant(file);
+      const candidates: OcrCandidate[] = [];
 
       if ("TextDetector" in window) {
         try {
@@ -732,26 +1065,79 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
           const bitmap = await createImageBitmap(preparedFile);
           const blocks = await detector.detect(bitmap);
           bitmap.close();
-          extractedText = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join("\n");
-          setRecognitionProgress(0.72);
+          const nativeText = blocks.map((block) => block.rawValue?.trim()).filter(Boolean).join("\n");
+
+          if (nativeText) {
+            candidates.push({
+              source: "native",
+              variant: "detector",
+              text: nativeText,
+              confidence: 64,
+              quality: scoreRecognizedTextQuality(nativeText, 64)
+            });
+          }
+
+          setRecognitionProgress(0.24);
         } catch {
-          extractedText = "";
+          // Ignore native detection failures and continue with OCR passes.
         }
       }
 
-      if (!extractedText) {
-        const { recognize } = await import("tesseract.js");
-        const result = (await recognize(preparedFile, "eng", {
-          logger: (message) => {
-            if (message.status === "recognizing text" && typeof message.progress === "number") {
-              setRecognitionProgress(0.16 + message.progress * 0.78);
-            }
+      const { createWorker, PSM } = await import("tesseract.js");
+      const worker = await createWorker("eng", 1, {
+        logger: (message) => {
+          if (message.status === "recognizing text" && typeof message.progress === "number") {
+            setRecognitionProgress((current) => Math.max(current, 0.28 + message.progress * 0.64));
           }
-        })) as RecognizeResult;
-        extractedText = result.data.text;
+        }
+      });
+
+      try {
+        await worker.setParameters({
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+          tessedit_pageseg_mode: PSM.SINGLE_BLOCK
+        });
+
+        const singleBlock = (await worker.recognize(preparedFile, { rotateAuto: true })) as RecognizeResult;
+        const singleBlockText = extractConfidentOcrText(singleBlock);
+        candidates.push({
+          source: "tesseract",
+          variant: "single-block",
+          text: singleBlockText,
+          confidence: singleBlock.data.confidence ?? 0,
+          quality: scoreRecognizedTextQuality(singleBlockText, singleBlock.data.confidence ?? 0)
+        });
+
+        await worker.setParameters({
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+          tessedit_pageseg_mode: PSM.SPARSE_TEXT
+        });
+
+        const sparseText = (await worker.recognize(contrastFile, { rotateAuto: true })) as RecognizeResult;
+        const sparseTextValue = extractConfidentOcrText(sparseText);
+        candidates.push({
+          source: "tesseract",
+          variant: "sparse-text",
+          text: sparseTextValue,
+          confidence: sparseText.data.confidence ?? 0,
+          quality: scoreRecognizedTextQuality(sparseTextValue, sparseText.data.confidence ?? 0)
+        });
+      } finally {
+        await worker.terminate();
       }
 
-      const importedBlock = buildImportedTextBlock(extractedText);
+      const bestCandidate = [...candidates]
+        .filter((candidate) => candidate.text.trim().length > 0)
+        .sort((left, right) => right.quality - left.quality)[0];
+
+      if (!bestCandidate || bestCandidate.quality < 48) {
+        toast.error("That photo was too unclear. Try a straighter shot with brighter light and tighter framing.");
+        return;
+      }
+
+      const importedBlock = buildImportedTextBlock(bestCandidate.text);
 
       if (!importedBlock) {
         toast.error("No readable text was found in that photo");
@@ -771,7 +1157,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         await queueSave(currentNote.id, { content: nextContent });
       }
 
-      toast.success("Photo converted into note text");
+      toast.success(bestCandidate.source === "tesseract" ? "Camera capture converted into note text" : "Camera text captured");
     } catch {
       toast.error("Could not extract text from that photo");
     } finally {
@@ -787,6 +1173,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     absorbCapturedNoteRef.current = absorbCapturedNote;
   }, [absorbCapturedNote]);
 
+  useEffect(() => {
+    setSelectedSnapshotIndex(0);
+  }, [selectedNote?.id, selectedSnapshots.length]);
+
   async function openLinkedNote(title: string) {
     try {
       const result = await openExistingOrCreateLinkedNote(title, effectiveNotes, selectedNote, selectNote, createNote, updateNote);
@@ -798,6 +1188,105 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     } catch {
       toast.error("Could not open linked note");
     }
+  }
+
+  async function updateClusterMode(clusterMode: VaultNoteClusterMode) {
+    if (!selectedNote) {
+      return;
+    }
+
+    try {
+      await updateNote(selectedNote.id, { clusterMode });
+    } catch {
+      toast.error("Could not update note mode");
+    }
+  }
+
+  async function applyExtractedAction(action: ExtractedAction) {
+    if (!selectedNote || !editor) {
+      return;
+    }
+
+    if (action.kind === "task") {
+      editor.chain().focus().insertContent(`\n- [ ] ${action.line}\n`, { contentType: "markdown" }).run();
+      toast.success("Added to checklist");
+      return;
+    }
+
+    if (action.kind === "schedule" && action.date) {
+      await updateSchedule({ date: action.date, done: false });
+      toast.success("Schedule pulled from note");
+      return;
+    }
+
+    if (action.kind === "followup") {
+      try {
+        await createFreshNote(undefined, selectedNote.title);
+        const latest = useVaultStore.getState().notes[0];
+        if (latest) {
+          await updateNote(latest.id, {
+            title: action.line.slice(0, 72),
+            content: `Linked from [[${selectedNote.title}]]\n\n${action.line}\n\n`
+          });
+        }
+        toast.success("Follow-up note created");
+      } catch {
+        toast.error("Could not create follow-up note");
+      }
+    }
+  }
+
+  function applyWritingPrompt(prompt: WritingPrompt) {
+    if (!selectedNote || !editor) {
+      return;
+    }
+
+    if (prompt.action === "link" && prompt.target) {
+      editor.chain().focus().insertContent(`[[${prompt.target}]]`, { contentType: "markdown" }).run();
+      toast.success(`Linked to ${prompt.target}`);
+      return;
+    }
+
+    if (prompt.action === "cluster" && prompt.clusterMode) {
+      void updateClusterMode(prompt.clusterMode);
+      return;
+    }
+
+    if (prompt.action === "schedule") {
+      schedulePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  async function restoreSnapshot(snapshot: VaultNoteSnapshot) {
+    if (!selectedNote || !editor) {
+      return;
+    }
+
+    setDraftNoteId(selectedNote.id);
+    setDraftTitle(snapshot.title);
+    setDraftContent(snapshot.content);
+    editor.commands.setContent(snapshot.content, { contentType: "markdown", emitUpdate: false });
+    await queueSave(selectedNote.id, { title: snapshot.title, content: snapshot.content });
+    toast.success("Snapshot restored");
+  }
+
+  function handleMobileGesture(eventType: "capture" | "schedule" | "related" | "memory") {
+    if (eventType === "capture") {
+      cameraInputRef.current?.click();
+      return;
+    }
+
+    if (eventType === "schedule") {
+      schedulePanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    if (eventType === "related") {
+      semanticPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    memoryPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   const noteDateLabel = selectedNote
@@ -833,9 +1322,9 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const editorTools = editor
     ? [
         {
-          id: "scan",
-          label: "Scan note photo",
-          icon: ScanText,
+          id: "capture",
+          label: "Capture with camera",
+          icon: Camera,
           active: false,
           tone: "accent" as const,
           run: () => cameraInputRef.current?.click()
@@ -961,7 +1450,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       {editorTools.map((tool) => {
         const Icon = tool.icon;
         const isActive = tool.active;
-        const isDisabled = Boolean(tool.disabled) || (tool.id === "scan" && isRecognizingText);
+        const isDisabled = Boolean(tool.disabled) || (tool.id === "capture" && isRecognizingText);
         const isAccent = tool.tone === "accent";
 
         return (
@@ -984,7 +1473,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             aria-label={tool.label}
             title={tool.label}
           >
-            {tool.id === "scan" && isRecognizingText ? <LoaderCircle className={`${isCompact ? "size-4.5" : "size-4"} animate-spin`} /> : <Icon className={isCompact ? "size-4.5" : "size-4"} />}
+            {tool.id === "capture" && isRecognizingText ? <LoaderCircle className={`${isCompact ? "size-4.5" : "size-4"} animate-spin`} /> : <Icon className={isCompact ? "size-4.5" : "size-4"} />}
           </button>
         );
       })}
@@ -997,7 +1486,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   );
 
   const schedulePanel = selectedNote ? (
-    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+    <div ref={schedulePanelRef} className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Schedule</p>
@@ -1070,10 +1559,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2">
             <Camera className="size-4 text-[color:var(--accent-amber)]" />
-            <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Scan into note</p>
+            <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Camera capture</p>
           </div>
           <p className={isCompact ? "mt-2 text-sm leading-6 text-white/72" : "mt-2 text-sm text-slate-300"}>
-            Take a photo of handwritten or printed notes and convert them straight into editable text.
+            Take a cleaner photo of handwritten or printed notes and turn it into precise editable text.
           </p>
           {isRecognizingText ? (
             <p className="mt-2 text-xs text-[color:var(--accent-amber)]">Extracting text... {(recognitionProgress * 100).toFixed(0)}%</p>
@@ -1092,8 +1581,94 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     </div>
   ) : null;
 
-  const semanticPanel = semanticRelatedNotes.length ? (
+  const clusterPanel = selectedNote ? (
     <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <Zap className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Note mode</p>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {CLUSTER_MODES.map((mode) => {
+          const Icon = mode.icon;
+          const active = inferClusterModeFromNote(selectedNote) === mode.id;
+
+          return (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => {
+                void updateClusterMode(mode.id);
+              }}
+              className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm transition ${
+                active
+                  ? "border-[rgba(239,191,114,0.24)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
+                  : "border-white/10 bg-white/6 text-white/84 hover:bg-white/10"
+              }`}
+            >
+              <Icon className="size-4" />
+              {mode.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  ) : null;
+
+  const promptsPanel = writingPrompts.length ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <Lightbulb className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Writing prompts</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {writingPrompts.map((prompt) => (
+          <button
+            key={prompt.id}
+            type="button"
+            onClick={() => applyWritingPrompt(prompt)}
+            className="flex w-full items-start justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-white">{prompt.label}</span>
+              <span className="mt-1 block text-xs text-slate-400">{prompt.detail}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const actionsPanel = extractedActions.length ? (
+    <div ref={actionsPanelRef} className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <Check className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Smart actions</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {extractedActions.map((action, index) => (
+          <button
+            key={`${action.kind}-${index}`}
+            type="button"
+            onClick={() => {
+              void applyExtractedAction(action);
+            }}
+            className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-medium text-white">{action.label}</span>
+              <span className="mt-1 block truncate text-xs text-slate-400">{action.detail}</span>
+            </span>
+            <span className="ml-3 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+              {action.kind}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const semanticPanel = semanticRelatedNotes.length ? (
+    <div ref={semanticPanelRef} className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
       <div className="flex items-center gap-2">
         <Sparkles className="size-4 text-[color:var(--accent-amber)]" />
         <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Related threads</p>
@@ -1111,7 +1686,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
           >
             <span className="min-w-0">
               <span className="block truncate text-sm font-medium text-white">{note.title}</span>
-              <span className="mt-1 block text-xs text-slate-400">{reasons.join(" • ")}</span>
+              <span className="mt-1 block text-xs text-slate-400">{reasons.join(" | ")}</span>
             </span>
             <span className="ml-3 shrink-0 rounded-full border border-[rgba(239,191,114,0.18)] bg-[rgba(239,191,114,0.08)] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[#fff4de]">
               {Math.round(score)}
@@ -1183,6 +1758,75 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     </div>
   ) : null;
 
+  const memoryPanel = dailyMemoryNotes.length ? (
+    <div ref={memoryPanelRef} className={isCompact ? `${isKeyboardOpen ? "hidden" : "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <History className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Daily memory</p>
+      </div>
+      <p className={isCompact ? "mt-2 text-sm leading-6 text-white/68" : "mt-2 text-sm text-slate-300"}>You wrote this before, and it connects here.</p>
+      <div className="mt-3 space-y-2">
+        {dailyMemoryNotes.map(({ note, overlap }) => (
+          <button
+            key={note.id}
+            type="button"
+            onClick={() => {
+              selectNote(note.id);
+              setActiveView("note");
+            }}
+            className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-white">{note.title}</span>
+              <span className="mt-1 block text-xs text-slate-400">Connected through {overlap.slice(0, 2).join(" / ")}</span>
+            </span>
+            <span className="ml-3 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+              Recall
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const historyPanel = selectedSnapshots.length ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <History className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Thought history</p>
+      </div>
+      <p className={isCompact ? "mt-2 text-sm leading-6 text-white/68" : "mt-2 text-sm text-slate-300"}>Scrub back through earlier versions of this note.</p>
+      <input
+        type="range"
+        min={0}
+        max={Math.max(0, selectedSnapshots.length - 1)}
+        value={Math.min(selectedSnapshotIndex, Math.max(0, selectedSnapshots.length - 1))}
+        onChange={(event) => setSelectedSnapshotIndex(Number(event.target.value))}
+        className="mt-4 w-full accent-[color:var(--accent-amber)]"
+      />
+      {selectedSnapshots[Math.min(selectedSnapshotIndex, selectedSnapshots.length - 1)] ? (
+        <div className="mt-3 rounded-[18px] border border-white/8 bg-white/5 p-3">
+          <p className="text-sm font-medium text-white">{selectedSnapshots[Math.min(selectedSnapshotIndex, selectedSnapshots.length - 1)]?.title || "Untitled snapshot"}</p>
+          <p className="mt-1 text-xs text-slate-400">Saved {formatUpdatedAt(selectedSnapshots[Math.min(selectedSnapshotIndex, selectedSnapshots.length - 1)]!.createdAt)}</p>
+          <p className="mt-2 text-sm text-slate-300">{shortNoteExcerpt(selectedSnapshots[Math.min(selectedSnapshotIndex, selectedSnapshots.length - 1)]!.content)}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const snapshot = selectedSnapshots[Math.min(selectedSnapshotIndex, selectedSnapshots.length - 1)];
+              if (snapshot) {
+                void restoreSnapshot(snapshot);
+              }
+            }}
+            className="mt-3 inline-flex items-center gap-2 rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] px-3.5 py-2 text-sm text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
+          >
+            <History className="size-4" />
+            Restore snapshot
+          </button>
+        </div>
+      ) : null}
+    </div>
+  ) : null;
+
   if (loadError && effectiveNotes.length === 0) {
     return (
       <div className="mx-auto flex min-h-[70vh] max-w-5xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
@@ -1250,6 +1894,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             notes={effectiveNotes}
             links={effectiveLinks}
             selectedNote={selectedNote}
+            selectedClusterMode={graphClusterMode}
+            onSelectClusterMode={setGraphClusterMode}
             onSelectNote={selectNote}
             onOpenLinkedNote={(title) => {
               void openLinkedNote(title);
@@ -1358,6 +2004,53 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 isCompact
                   ? {
                       paddingBottom: `max(calc(env(safe-area-inset-bottom, 0px) + 108px), ${keyboardInset + 86}px)`
+                  }
+                  : undefined
+              }
+              onTouchStart={
+                isCompact
+                  ? (event) => {
+                      const touch = event.touches[0];
+                      if (!touch) {
+                        return;
+                      }
+
+                      touchStartRef.current = {
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        time: performance.now(),
+                        allowGesture: touch.clientY > window.innerHeight - 180
+                      };
+                    }
+                  : undefined
+              }
+              onTouchEnd={
+                isCompact
+                  ? (event) => {
+                      const start = touchStartRef.current;
+                      const touch = event.changedTouches[0];
+                      touchStartRef.current = null;
+
+                      if (!start || !touch || !start.allowGesture) {
+                        return;
+                      }
+
+                      const deltaX = touch.clientX - start.x;
+                      const deltaY = touch.clientY - start.y;
+                      const elapsed = performance.now() - start.time;
+
+                      if (elapsed > 320) {
+                        return;
+                      }
+
+                      if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 72 && Math.abs(deltaY) < 42) {
+                        handleMobileGesture(deltaX > 0 ? "related" : "schedule");
+                        return;
+                      }
+
+                      if (Math.abs(deltaY) > 88 && Math.abs(deltaX) < 42) {
+                        handleMobileGesture(deltaY < 0 ? "capture" : "memory");
+                      }
                     }
                   : undefined
               }
@@ -1410,6 +2103,12 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
               {capturePanel}
 
+              {clusterPanel}
+
+              {promptsPanel}
+
+              {actionsPanel}
+
               {semanticPanel}
 
               {schedulePanel}
@@ -1443,6 +2142,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
               {upcomingPanel}
 
+              {memoryPanel}
+
+              {historyPanel}
+
               {recentTrailPanel}
             </div>
 
@@ -1451,7 +2154,15 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+18px)]"
                 style={{ bottom: keyboardInset > 0 ? `${Math.max(12, keyboardInset - 8)}px` : "0px" }}
               >
-                {editorToolbar}
+                <div className="space-y-2">
+                  <div className="pointer-events-auto mx-auto flex w-full max-w-[420px] items-center justify-between rounded-[22px] border border-white/10 bg-[rgba(12,16,24,0.92)] px-3.5 py-2 text-[11px] uppercase tracking-[0.22em] text-white/55 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur-2xl">
+                    <button type="button" onClick={() => handleMobileGesture("capture")} className="rounded-full px-2 py-1 text-left transition hover:text-white">Up: Capture</button>
+                    <button type="button" onClick={() => handleMobileGesture("schedule")} className="rounded-full px-2 py-1 text-left transition hover:text-white">Left: Schedule</button>
+                    <button type="button" onClick={() => handleMobileGesture("related")} className="rounded-full px-2 py-1 text-left transition hover:text-white">Right: Related</button>
+                    <button type="button" onClick={() => handleMobileGesture("memory")} className="rounded-full px-2 py-1 text-left transition hover:text-white">Down: Memory</button>
+                  </div>
+                  {editorToolbar}
+                </div>
               </div>
             ) : null}
           </>

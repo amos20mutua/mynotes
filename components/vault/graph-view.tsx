@@ -1,23 +1,33 @@
 "use client";
 
-import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, BriefcaseBusiness, Lightbulb, Microscope, Plus, Search, Trash2, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { ROOT_NODE_ID } from "@/lib/vault/graph";
 import { buildSphericalVaultGraph } from "@/lib/vault/sphere-graph";
-import type { VaultLink, VaultNote } from "@/types";
+import type { VaultLink, VaultNote, VaultNoteClusterMode } from "@/types";
 
 type GraphViewProps = {
   notes: VaultNote[];
   links: VaultLink[];
   selectedNote: VaultNote | null;
+  selectedClusterMode: "all" | VaultNoteClusterMode;
+  onSelectClusterMode: (mode: "all" | VaultNoteClusterMode) => void;
   onSelectNote: (noteId: string) => void;
   onOpenLinkedNote: (title: string) => void;
   onOpenEditor: () => void;
   onCreateNoteAtPoint: (graphPosition: { x: number; y: number; z: number }, connectToTitle?: string) => Promise<void>;
   onDeleteNote: (noteId: string) => Promise<void>;
 };
+
+const CLUSTER_MODE_OPTIONS: Array<{ id: "all" | VaultNoteClusterMode; label: string; icon?: typeof Lightbulb }> = [
+  { id: "all", label: "All" },
+  { id: "ideas", label: "Ideas", icon: Lightbulb },
+  { id: "projects", label: "Projects", icon: BriefcaseBusiness },
+  { id: "people", label: "People", icon: Users },
+  { id: "research", label: "Research", icon: Microscope }
+];
 
 type ProjectedNode = {
   id: string;
@@ -86,6 +96,37 @@ function shortExcerpt(content: string) {
 
 function truncateLabel(value: string, length: number) {
   return value.length > length ? `${value.slice(0, Math.max(0, length - 3))}...` : value;
+}
+
+function inferClusterMode(note: VaultNote): VaultNoteClusterMode {
+  if (note.clusterMode) {
+    return note.clusterMode;
+  }
+
+  const combined = `${note.folder ?? ""} ${note.colorGroup ?? ""} ${(note.tags ?? []).join(" ")} ${note.title}`.toLowerCase();
+
+  if (/(project|launch|roadmap|ops|workflow|sprint|quarter)/.test(combined)) {
+    return "projects";
+  }
+
+  if (/(relationship|people|person|meeting|personal|life|health|home|finance|fitness)/.test(combined)) {
+    return "people";
+  }
+
+  if (/(research|learning|reference|question|graph|knowledge|system|reading|prompt|design)/.test(combined)) {
+    return "research";
+  }
+
+  return "ideas";
+}
+
+function tokenizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1);
 }
 
 function buildAdjacency(edges: { source: string; target: string }[]) {
@@ -181,7 +222,7 @@ function inverseRotatePoint(point: { x: number; y: number; z: number }, rotation
   };
 }
 
-export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
+export function GraphView({ notes, links, selectedNote, selectedClusterMode, onSelectClusterMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
   const graph = useMemo(() => buildSphericalVaultGraph(notes, links), [links, notes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [lockedNodeId, setLockedNodeId] = useState<string | null>(selectedNote ? `note:${selectedNote.id}` : ROOT_NODE_ID);
@@ -218,6 +259,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/i.test(window.navigator.userAgent);
 
   const nodeById = useMemo(() => new Map(graph.nodes.map((node) => [node.id, node] as const)), [graph.nodes]);
+  const noteById = useMemo(() => new Map(notes.map((note) => [note.id, note] as const)), [notes]);
   const adjacency = useMemo(() => buildAdjacency(graph.edges), [graph.edges]);
 
   useEffect(() => {
@@ -272,18 +314,74 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
-  const searchMatchNode = useMemo(() => {
+  const searchTokens = useMemo(() => tokenizeSearchText(query), [query]);
+  const searchMatches = useMemo(() => {
     if (!query) {
-      return null;
+      return [];
     }
 
-    return (
-      graph.nodes.find((node) => node.noteId && node.label.toLowerCase() === query) ??
-      graph.nodes.find((node) => node.noteId && node.label.toLowerCase().startsWith(query)) ??
-      graph.nodes.find((node) => node.noteId && node.label.toLowerCase().includes(query)) ??
-      null
-    );
-  }, [graph.nodes, query]);
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return notes
+      .map((note) => {
+        const title = note.title.toLowerCase();
+        const content = note.content.toLowerCase();
+        const titleTokens = tokenizeSearchText(note.title);
+        const contentTokens = tokenizeSearchText(note.content);
+        const combinedTokenSet = new Set([...titleTokens, ...contentTokens]);
+        const titleTokenMatches = searchTokens.filter((token) => titleTokens.includes(token)).length;
+        const contentTokenMatches = searchTokens.filter((token) => combinedTokenSet.has(token)).length;
+
+        let score = 0;
+
+        if (title === normalizedQuery) {
+          score += 240;
+        } else if (title.startsWith(normalizedQuery)) {
+          score += 180;
+        } else if (title.includes(normalizedQuery)) {
+          score += 130;
+        }
+
+        if (content.includes(normalizedQuery)) {
+          score += 56;
+        }
+
+        score += titleTokenMatches * 22;
+        score += contentTokenMatches * 8;
+
+        return {
+          noteId: note.id,
+          score,
+          titleStrength: title === normalizedQuery ? 1 : title.startsWith(normalizedQuery) ? 0.9 : title.includes(normalizedQuery) ? 0.78 : titleTokenMatches > 0 ? 0.7 : 0,
+          contentStrength: contentTokenMatches > 0 || content.includes(normalizedQuery) ? Math.min(0.72, 0.18 + contentTokenMatches * 0.12 + (content.includes(normalizedQuery) ? 0.16 : 0)) : 0
+        };
+      })
+      .filter((match) => match.score > 0)
+      .sort((left, right) => right.score - left.score);
+  }, [notes, query, searchTokens]);
+
+  const searchMatchNode = useMemo(() => {
+    const best = searchMatches[0];
+    return best ? graph.nodes.find((node) => node.noteId === best.noteId) ?? null : null;
+  }, [graph.nodes, searchMatches]);
+
+  const searchMatchStrengthByNodeId = useMemo(() => {
+    const strengths = new Map<string, number>();
+
+    searchMatches.forEach((match, index) => {
+      const node = graph.nodes.find((entry) => entry.noteId === match.noteId);
+
+      if (!node) {
+        return;
+      }
+
+      const primaryBias = index === 0 ? 1 : 0;
+      const normalizedStrength = Math.max(match.titleStrength, match.contentStrength, Math.min(0.88, match.score / 240));
+      strengths.set(node.id, Math.min(1, normalizedStrength + primaryBias * 0.12));
+    });
+
+    return strengths;
+  }, [graph.nodes, searchMatches]);
 
   const activeNodeId = hoveredNodeId ?? searchMatchNode?.id ?? lockedNodeId ?? ROOT_NODE_ID;
   const neighborhoodDepths = useMemo(() => buildDepthMap(activeNodeId, adjacency), [activeNodeId, adjacency]);
@@ -321,23 +419,57 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   }, [graph.nodes, rotationX, rotationY]);
 
   const projectedNodeById = useMemo(() => new Map(projectedNodes.map((node) => [node.id, node] as const)), [projectedNodes]);
+  const semanticZoomTier = scale < 1 ? "macro" : scale < 1.22 ? "cluster" : "detail";
 
-  const filteredNodeIds = useMemo(() => {
-    if (!query) {
-      return new Set(graph.nodes.map((node) => node.id));
-    }
+  const visibleNodeIds = useMemo(() => {
+    const ids = new Set<string>();
 
-    const ids = new Set(graph.nodes.filter((node) => node.label.toLowerCase().includes(query)).map((node) => node.id));
+    for (const node of graph.nodes) {
+      const note = node.noteId ? noteById.get(node.noteId) ?? null : null;
+      const clusterAllowed = !note || selectedClusterMode === "all" || inferClusterMode(note) === selectedClusterMode;
 
-    if (searchMatchNode?.id) {
-      ids.add(searchMatchNode.id);
-      for (const neighbor of adjacency.get(searchMatchNode.id) ?? []) {
-        ids.add(neighbor);
+      if (!clusterAllowed) {
+        continue;
       }
+
+      const isSearchMatch = (searchMatchStrengthByNodeId.get(node.id) ?? 0) > 0;
+      const isActive = node.id === activeNodeId || node.id === hoveredNodeId;
+      const inNeighborhood = neighborhood.has(node.id);
+
+      if (semanticZoomTier === "macro") {
+        if (node.type === "root" || node.isHub || isSearchMatch || isActive || inNeighborhood) {
+          ids.add(node.id);
+        }
+        continue;
+      }
+
+      if (semanticZoomTier === "cluster") {
+        if (node.type === "root" || node.isHub || node.type === "ghost" || isSearchMatch || isActive || inNeighborhood || node.degree >= 5) {
+          ids.add(node.id);
+        }
+        continue;
+      }
+
+      ids.add(node.id);
     }
 
     return ids;
-  }, [adjacency, graph.nodes, query, searchMatchNode]);
+  }, [activeNodeId, graph.nodes, hoveredNodeId, neighborhood, noteById, searchMatchStrengthByNodeId, selectedClusterMode, semanticZoomTier]);
+
+  const filteredNodeIds = useMemo(() => {
+    if (!query) {
+      return visibleNodeIds;
+    }
+
+    const ids = new Set<string>();
+    for (const nodeId of visibleNodeIds) {
+      if (searchMatchStrengthByNodeId.has(nodeId)) {
+        ids.add(nodeId);
+      }
+    }
+    if (searchMatchNode?.id) ids.add(searchMatchNode.id);
+    return ids;
+  }, [query, searchMatchNode, searchMatchStrengthByNodeId, visibleNodeIds]);
 
   const previewNode = activeNodeId ? nodeById.get(activeNodeId) ?? null : null;
   const previewNote = previewNode?.noteId ? notes.find((note) => note.id === previewNode.noteId) ?? null : null;
@@ -531,7 +663,31 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       ) : null}
 
       <div style={topBarStyle} className="absolute inset-x-3 z-20 flex items-start justify-between gap-3 sm:inset-x-5 sm:top-5">
-        <h1 className="px-1 pt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
+        <div className="min-w-0">
+          <h1 className="px-1 pt-1 text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">Vault</h1>
+          <div className="mt-3 flex max-w-[62vw] flex-wrap gap-2 sm:max-w-none">
+            {CLUSTER_MODE_OPTIONS.map((mode) => {
+              const Icon = mode.icon;
+              const active = selectedClusterMode === mode.id;
+
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => onSelectClusterMode(mode.id)}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium transition sm:text-xs ${
+                    active
+                      ? "border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
+                      : "border-white/10 bg-slate-950/32 text-slate-200 hover:bg-white/8"
+                  }`}
+                >
+                  {Icon ? <Icon className="size-3.5" /> : null}
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="flex min-w-0 items-center gap-2">
           {!isStandaloneApp ? (
@@ -556,6 +712,10 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             />
           </div>
         </div>
+      </div>
+
+      <div className="pointer-events-none absolute right-3 top-[calc(env(safe-area-inset-top,0px)+118px)] z-20 rounded-full border border-white/10 bg-slate-950/38 px-3 py-1.5 text-[10px] uppercase tracking-[0.22em] text-slate-300 shadow-[0_18px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl sm:right-5 sm:top-28 sm:text-xs">
+        {semanticZoomTier === "macro" ? "Overview zoom" : semanticZoomTier === "cluster" ? "Cluster zoom" : "Detail zoom"}
       </div>
 
       <div
@@ -646,6 +806,10 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
         >
           <g transform={`translate(${VIEWPORT_WIDTH * (1 - scale) * 0.5} ${VIEWPORT_HEIGHT * (1 - scale) * 0.5 + graphVerticalOffset}) scale(${scale})`}>
             {graph.edges.map((edge) => {
+              if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {
+                return null;
+              }
+
               const source = projectedNodeById.get(edge.source);
               const target = projectedNodeById.get(edge.target);
 
@@ -658,6 +822,9 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               const activeDepth = Math.max(sourceDepth ?? 9, targetDepth ?? 9);
               const highlighted = neighborhood.size > 0 ? neighborhood.has(edge.source) && neighborhood.has(edge.target) : false;
               const palette = getClusterColor(nodeById.get(edge.source)?.cluster ?? "Vault");
+              const sourceSearchStrength = searchMatchStrengthByNodeId.get(edge.source) ?? 0;
+              const targetSearchStrength = searchMatchStrengthByNodeId.get(edge.target) ?? 0;
+              const matchedBySearch = sourceSearchStrength > 0 && targetSearchStrength > 0;
               const meanDepth = (source.z + target.z) * 0.5;
               const frontFactor = clamp((meanDepth + 1) / 2, 0, 1);
 
@@ -665,14 +832,19 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                 return null;
               }
 
-              const stroke = highlighted ? (activeDepth <= 1 ? ACTIVE_LINE_COLOR : HOVER_LINE_COLOR) : palette.edge;
-              const opacity = highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.018 + frontFactor * 0.05;
-              const width = highlighted ? (activeDepth <= 1 ? 1.85 : 1.02) : 0.42;
+              const matchStrength = Math.min(sourceSearchStrength, targetSearchStrength);
+              const stroke = matchedBySearch ? ACTIVE_LINE_COLOR : highlighted ? (activeDepth <= 1 ? ACTIVE_LINE_COLOR : HOVER_LINE_COLOR) : palette.edge;
+              const opacity = matchedBySearch ? 0.18 + matchStrength * 0.44 : highlighted ? (activeDepth <= 1 ? 0.76 : 0.34) : 0.018 + frontFactor * 0.05;
+              const width = matchedBySearch ? 0.72 + matchStrength * 0.9 : highlighted ? (activeDepth <= 1 ? 1.85 : 1.02) : 0.42;
 
               return <line key={`${edge.source}-${edge.target}`} x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={stroke} strokeOpacity={opacity} strokeWidth={width} />;
             })}
 
             {projectedNodes.map((node) => {
+              if (!visibleNodeIds.has(node.id)) {
+                return null;
+              }
+
               const baseNode = nodeById.get(node.id);
               if (!baseNode) {
                 return null;
@@ -686,18 +858,20 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                     : getClusterColor(baseNode.cluster);
               const selected = node.id === activeNodeId;
               const hovered = node.id === hoveredNodeId;
-              const searchMatched = query.length > 0 && node.id === searchMatchNode?.id;
+              const matchStrength = searchMatchStrengthByNodeId.get(node.id) ?? 0;
+              const searchMatched = query.length > 0 && matchStrength > 0;
+              const primarySearchMatch = query.length > 0 && node.id === searchMatchNode?.id;
               const depth = neighborhoodDepths.get(node.id) ?? null;
               const visibleByQuery = filteredNodeIds.has(node.id);
               const frontFactor = clamp((node.z + 1) / 2, 0, 1);
-              const radius = node.radius * (selected ? 1.16 : hovered ? 1.08 : depth === 1 ? 1.03 : 1);
+              const radius = node.radius * (primarySearchMatch ? 1.18 : searchMatched ? 1.06 + matchStrength * 0.05 : selected ? 1.16 : hovered ? 1.08 : depth === 1 ? 1.03 : 1);
               const displayPalette = searchMatched ? SEARCH_MATCH_PALETTE : palette;
-              const nodeOpacity = !visibleByQuery ? 0.06 : searchMatched ? 0.98 : selected ? 1 : hovered ? 0.92 : depth === 1 ? 0.8 : depth === 2 ? 0.46 : 0.12 + frontFactor * 0.42;
-              const haloOpacity = searchMatched ? 0.24 : selected ? 0.28 : hovered ? 0.14 : depth === 1 ? 0.08 : 0.02;
-              const showLabel = selected || hovered || depth === 1 || (baseNode.isHub && frontFactor > 0.62) || (visibleByQuery && frontFactor > 0.8 && node.radius > 5.5);
-              const labelOpacity = selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.84 : 0.42 + frontFactor * 0.42;
-              const labelColor = searchMatched ? displayPalette.frontLabel : selected || frontFactor > 0.72 ? displayPalette.frontLabel : displayPalette.label;
-              const nodeFill = searchMatched ? displayPalette.selected : selected ? displayPalette.selected : hovered ? displayPalette.selected : displayPalette.fill;
+              const nodeOpacity = !visibleByQuery ? 0.06 : primarySearchMatch ? 0.98 : searchMatched ? 0.42 + matchStrength * 0.42 : selected ? 1 : hovered ? 0.92 : depth === 1 ? 0.8 : depth === 2 ? 0.46 : 0.12 + frontFactor * 0.42;
+              const haloOpacity = primarySearchMatch ? 0.24 : searchMatched ? 0.08 + matchStrength * 0.1 : selected ? 0.28 : hovered ? 0.14 : depth === 1 ? 0.08 : 0.02;
+              const showLabel = primarySearchMatch || searchMatched || selected || hovered || depth === 1 || (baseNode.isHub && frontFactor > 0.62) || (visibleByQuery && frontFactor > 0.8 && node.radius > 5.5);
+              const labelOpacity = primarySearchMatch ? 1 : searchMatched ? 0.68 + matchStrength * 0.24 : selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.84 : 0.42 + frontFactor * 0.42;
+              const labelColor = primarySearchMatch ? displayPalette.frontLabel : searchMatched ? displayPalette.label : selected || frontFactor > 0.72 ? displayPalette.frontLabel : displayPalette.label;
+              const nodeFill = primarySearchMatch ? displayPalette.selected : searchMatched ? displayPalette.fill : selected ? displayPalette.selected : hovered ? displayPalette.selected : displayPalette.fill;
 
               return (
                 <g

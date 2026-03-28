@@ -6,6 +6,8 @@ import { vaultRepository } from "@/lib/vault/repository";
 import { materializeVaultData } from "@/lib/vault/persistence";
 import type { VaultData, VaultLink, VaultNote } from "@/types";
 
+type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots">;
+
 type VaultState = {
   notes: VaultNote[];
   links: VaultLink[];
@@ -16,8 +18,8 @@ type VaultState = {
   hasHydratedInitialData: boolean;
   initializeVault: (data: VaultData) => void;
   loadVault: () => Promise<void>;
-  createNote: (input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>;
-  updateNote: (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>;
+  createNote: (input?: Partial<NoteMutationFields>) => Promise<void>;
+  updateNote: (noteId: string, updates: Partial<NoteMutationFields>) => Promise<void>;
   selectNote: (noteId: string) => void;
   deleteNote: (noteId: string) => Promise<void>;
 };
@@ -68,9 +70,11 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       colorGroup: input?.colorGroup ?? input?.folder ?? "Vault",
       folder: input?.folder ?? "Vault",
       tags: input?.tags ?? [],
+      clusterMode: input?.clusterMode,
       isPinned: input?.isPinned ?? false,
       status: input?.status ?? "draft",
       schedule: input?.schedule,
+      snapshots: input?.snapshots,
       graphPosition: input?.graphPosition,
       createdAt: timestamp,
       updatedAt: timestamp
@@ -92,11 +96,40 @@ export const useVaultStore = create<VaultState>((set, get) => ({
     const previousLinks = get().links;
     const mergedNotes = previousNotes.map((note) =>
       note.id === noteId
-        ? {
-            ...note,
-            ...updates,
-            updatedAt: new Date().toISOString()
-          }
+        ? (() => {
+            const nextUpdatedAt = new Date().toISOString();
+            const nextTitle = updates.title ?? note.title;
+            const nextContent = updates.content ?? note.content;
+            const latestSnapshot = note.snapshots?.[0];
+            const timeSinceLastSnapshot = latestSnapshot ? new Date(note.updatedAt).getTime() - new Date(latestSnapshot.createdAt).getTime() : Number.POSITIVE_INFINITY;
+            const contentDelta = Math.abs((nextContent ?? "").length - (note.content ?? "").length);
+            const shouldSnapshot =
+              typeof updates.title === "string" || typeof updates.content === "string"
+                ? (nextTitle !== note.title && nextTitle.trim().length > 0) ||
+                  (nextContent !== note.content && (contentDelta > 180 || timeSinceLastSnapshot > 1000 * 60 * 8))
+                : false;
+
+            const nextSnapshots = shouldSnapshot
+              ? [
+                  {
+                    id: crypto.randomUUID(),
+                    title: note.title,
+                    content: note.content,
+                    createdAt: note.updatedAt
+                  },
+                  ...(updates.snapshots ?? note.snapshots ?? [])
+                ]
+                  .filter((snapshot, index, array) => array.findIndex((entry) => entry.id === snapshot.id) === index)
+                  .slice(0, 12)
+              : (updates.snapshots ?? note.snapshots);
+
+            return {
+              ...note,
+              ...updates,
+              snapshots: nextSnapshots,
+              updatedAt: nextUpdatedAt
+            };
+          })()
         : note
     );
     const optimisticVault = materializeVaultData({ notes: mergedNotes, links: previousLinks });

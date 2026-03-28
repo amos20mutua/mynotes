@@ -108,6 +108,15 @@ export type VaultNoteSchedule = {
   reminderMinutes?: number;
 };
 
+export type VaultNoteClusterMode = "ideas" | "projects" | "people" | "research";
+
+export type VaultNoteSnapshot = {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
 export type VaultNote = {
   id: string;
   title: string;
@@ -115,9 +124,11 @@ export type VaultNote = {
   colorGroup: string;
   folder?: string;
   tags?: string[];
+  clusterMode?: VaultNoteClusterMode;
   isPinned?: boolean;
   status?: VaultNoteStatus;
   schedule?: VaultNoteSchedule;
+  snapshots?: VaultNoteSnapshot[];
   graphPosition?: {
     x: number;
     y: number;

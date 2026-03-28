@@ -1,6 +1,6 @@
 import { defaultVaultData } from "@/lib/vault/default-vault";
 import { normalizeTitle, parseWikiLinks } from "@/lib/vault/graph";
-import type { VaultData, VaultLink, VaultNote } from "@/types";
+import type { VaultData, VaultLink, VaultNote, VaultNoteClusterMode, VaultNoteSnapshot } from "@/types";
 
 export type SupabaseNoteRow = {
   id: string;
@@ -29,6 +29,42 @@ function sortLinks(links: VaultLink[]) {
   return [...links].sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime());
 }
 
+function inferClusterMode(note: VaultNote): VaultNoteClusterMode {
+  const folder = `${note.folder ?? ""} ${note.colorGroup ?? ""}`.toLowerCase();
+  const tags = (note.tags ?? []).join(" ").toLowerCase();
+  const title = note.title.toLowerCase();
+  const combined = `${folder} ${tags} ${title}`;
+
+  if (/(project|launch|roadmap|sprint|checklist|workflow|ops)/.test(combined)) {
+    return "projects";
+  }
+
+  if (/(person|people|relationship|meeting|contact|personal|life|health|home|finance|fitness)/.test(combined)) {
+    return "people";
+  }
+
+  if (/(research|learning|reference|question|graph|knowledge|system|design|reading|prompt)/.test(combined)) {
+    return "research";
+  }
+
+  return "ideas";
+}
+
+function normalizeSnapshots(note: VaultNote): VaultNoteSnapshot[] | undefined {
+  const snapshots = (note.snapshots ?? [])
+    .filter((snapshot): snapshot is VaultNoteSnapshot => Boolean(snapshot?.id && snapshot?.createdAt))
+    .map((snapshot) => ({
+      id: snapshot.id,
+      title: snapshot.title ?? "",
+      content: snapshot.content ?? "",
+      createdAt: snapshot.createdAt
+    }))
+    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+    .slice(0, 12);
+
+  return snapshots.length ? snapshots : undefined;
+}
+
 export function normalizeVaultNote(note: VaultNote): VaultNote {
   return {
     ...note,
@@ -37,6 +73,7 @@ export function normalizeVaultNote(note: VaultNote): VaultNote {
     colorGroup: note.colorGroup?.trim() || note.folder?.trim() || "Vault",
     folder: note.folder?.trim() || note.colorGroup?.trim() || "Vault",
     tags: Array.from(new Set((note.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
+    clusterMode: note.clusterMode ?? inferClusterMode(note),
     isPinned: note.isPinned ?? false,
     status: note.status ?? "active",
     schedule:
@@ -48,6 +85,7 @@ export function normalizeVaultNote(note: VaultNote): VaultNote {
             ...(typeof note.schedule.reminderMinutes === "number" ? { reminderMinutes: note.schedule.reminderMinutes } : {})
           }
         : undefined,
+    snapshots: normalizeSnapshots(note),
     graphPosition:
       note.graphPosition &&
       Number.isFinite(note.graphPosition.x) &&

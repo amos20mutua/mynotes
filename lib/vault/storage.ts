@@ -4,6 +4,8 @@ import { defaultVaultData } from "@/lib/vault/default-vault";
 import { materializeVaultData } from "@/lib/vault/persistence";
 import type { VaultData, VaultNote, VaultNoteStatus } from "@/types";
 
+type NoteMutationFields = Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition" | "clusterMode" | "snapshots">;
+
 const vaultDirectory = path.join(process.cwd(), "data");
 const vaultFilePath = path.join(vaultDirectory, "vault.json");
 
@@ -14,6 +16,8 @@ function normalizeNote(note: VaultNote): VaultNote {
     folder: note.folder?.trim() || note.colorGroup?.trim() || "Vault",
     tags: Array.from(new Set((note.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
     title: note.title.trim() || "Untitled note",
+    clusterMode: note.clusterMode,
+    snapshots: note.snapshots?.slice(0, 12),
     graphPosition: note.graphPosition
       ? {
           x: note.graphPosition.x,
@@ -55,7 +59,7 @@ export async function writeVault(data: VaultData) {
   return normalized;
 }
 
-export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) {
+export async function createVaultNote(input?: Partial<NoteMutationFields>) {
   const vault = await readVault();
   const timestamp = new Date().toISOString();
   const note: VaultNote = {
@@ -65,9 +69,11 @@ export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | 
     colorGroup: input?.colorGroup?.trim() || input?.folder?.trim() || "Vault",
     folder: input?.folder?.trim() || input?.colorGroup?.trim() || "Vault",
     tags: input?.tags ?? [],
+    clusterMode: input?.clusterMode,
     isPinned: input?.isPinned ?? false,
     status: input?.status ?? "draft",
     schedule: input?.schedule,
+    snapshots: input?.snapshots,
     graphPosition: input?.graphPosition,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -78,7 +84,7 @@ export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | 
 
 export async function updateVaultNote(
   noteId: string,
-  updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>
+  updates: Partial<NoteMutationFields>
 ) {
   const vault = await readVault();
   const notes = vault.notes.map((note) =>

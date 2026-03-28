@@ -8,10 +8,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     content?: string;
     folder?: string;
     tags?: string[];
+    clusterMode?: "ideas" | "projects" | "people" | "research";
     isPinned?: boolean;
     status?: "draft" | "active" | "archived";
     schedule?: { date: string; time?: string; done?: boolean; reminderMinutes?: number };
-    graphPosition?: { x: number; y: number };
+    snapshots?: Array<{ id: string; title: string; content: string; createdAt: string }>;
+    graphPosition?: { x: number; y: number; z?: number };
   };
 
   const vault = await updateVaultNote(id, body);
