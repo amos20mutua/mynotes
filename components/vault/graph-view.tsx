@@ -214,6 +214,21 @@ function inverseRotatePoint(point: { x: number; y: number; z: number }, rotation
   };
 }
 
+function buildShellPoints(count: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const t = (index + 0.5) / count;
+    const y = 1 - t * 2;
+    const radius = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = Math.PI * (3 - Math.sqrt(5)) * index;
+
+    return {
+      x: Math.cos(theta) * radius,
+      y,
+      z: Math.sin(theta) * radius
+    };
+  });
+}
+
 export function GraphView({ notes, links, mode, selectedNote, selectedClusterMode, onSelectNote, onOpenLinkedNote, onOpenEditor, onCreateNoteAtPoint, onDeleteNote }: GraphViewProps) {
   const graph = useMemo(() => buildSphericalVaultGraph(notes, links), [links, notes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
@@ -432,6 +447,43 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   }, [graph.nodes, rotationX, rotationY]);
 
   const projectedNodeById = useMemo(() => new Map(projectedNodes.map((node) => [node.id, node] as const)), [projectedNodes]);
+  const sphereShellDots = useMemo(() => {
+    return buildShellPoints(64)
+      .map((point, index) => {
+        const rotated = rotatePoint(point, rotationX, rotationY);
+        const perspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - rotated.z);
+
+        return {
+          id: `shell-${index}`,
+          x: SPHERE_CENTER_X + rotated.x * SPHERE_RADIUS * perspective,
+          y: SPHERE_CENTER_Y + rotated.y * SPHERE_RADIUS * perspective,
+          z: rotated.z,
+          r: 1.3 + perspective * 0.9,
+          opacity: 0.035 + ((rotated.z + 1) / 2) * 0.07
+        };
+      })
+      .sort((left, right) => left.z - right.z);
+  }, [rotationX, rotationY]);
+  const shellLatitudeRings = useMemo(() => {
+    return [-0.58, -0.18, 0.22, 0.62].map((latitude) => {
+      const radius = Math.sqrt(Math.max(0, 1 - latitude * latitude));
+      const front = rotatePoint({ x: radius, y: latitude, z: 0 }, rotationX, rotationY);
+      const back = rotatePoint({ x: -radius, y: latitude, z: 0 }, rotationX, rotationY);
+      const vertical = rotatePoint({ x: 0, y: latitude, z: radius }, rotationX, rotationY);
+      const perspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - front.z);
+      const oppositePerspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - back.z);
+      const verticalPerspective = CAMERA_DISTANCE / (CAMERA_DISTANCE - vertical.z);
+
+      return {
+        key: `ring-${latitude}`,
+        cx: SPHERE_CENTER_X + ((front.x * perspective) + (back.x * oppositePerspective)) * SPHERE_RADIUS * 0.5,
+        cy: SPHERE_CENTER_Y + vertical.y * SPHERE_RADIUS * verticalPerspective,
+        rx: Math.max(42, radius * SPHERE_RADIUS * perspective),
+        ry: Math.max(10, radius * SPHERE_RADIUS * 0.24 * verticalPerspective),
+        opacity: 0.028 + ((vertical.z + 1) / 2) * 0.035
+      };
+    });
+  }, [rotationX, rotationY]);
   const semanticZoomTier = scale < 1 ? "macro" : scale < 1.22 ? "cluster" : "detail";
 
   const visibleNodeIds = useMemo(() => {
@@ -828,6 +880,22 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
           }}
         >
           <g transform={`translate(${VIEWPORT_WIDTH * (1 - scale) * 0.5} ${VIEWPORT_HEIGHT * (1 - scale) * 0.5 + graphVerticalOffset}) scale(${scale})`}>
+            {shellLatitudeRings.map((ring) => (
+              <ellipse
+                key={ring.key}
+                cx={ring.cx}
+                cy={ring.cy}
+                rx={ring.rx}
+                ry={ring.ry}
+                fill="none"
+                stroke="rgba(182, 198, 224, 0.18)"
+                strokeOpacity={ring.opacity}
+                strokeWidth={0.9}
+              />
+            ))}
+            {sphereShellDots.map((dot) => (
+              <circle key={dot.id} cx={dot.x} cy={dot.y} r={dot.r} fill="rgba(182,198,224,0.72)" opacity={dot.opacity} />
+            ))}
             {graph.edges.map((edge) => {
               if (!visibleNodeIds.has(edge.source) || !visibleNodeIds.has(edge.target)) {
                 return null;

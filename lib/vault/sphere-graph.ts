@@ -12,6 +12,7 @@ export type SphereGraph = {
 };
 
 const SPHERE_RADIUS = 12;
+const MIN_SPHERE_NODE_COUNT = 18;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const CORE_POSITIONS: Record<string, [number, number, number]> = {
   [ROOT_NODE_ID]: [0.08, 0.92, 0.38],
@@ -81,6 +82,18 @@ function graphPositionToPoint(note: VaultNote) {
   return null;
 }
 
+function pickShellIndices(total: number, count: number) {
+  if (count <= 0 || total <= 0) {
+    return [];
+  }
+
+  if (count >= total) {
+    return Array.from({ length: total }, (_, index) => index);
+  }
+
+  return Array.from({ length: count }, (_, index) => Math.min(total - 1, Math.round((index * (total - 1)) / Math.max(1, count - 1))));
+}
+
 export function buildSphericalVaultGraph(notes: VaultNote[], links?: VaultLink[]): SphereGraph {
   const flatGraph = buildVaultGraph(notes, links);
   const noteById = new Map(notes.map((note) => [note.id, note] as const));
@@ -102,12 +115,34 @@ export function buildSphericalVaultGraph(notes: VaultNote[], links?: VaultLink[]
     return true;
   });
 
-  const distributedNotePositions = distributedDirections(unpositionedNoteNodes.length);
+  const shellDirections = distributedDirections(Math.max(unpositionedNoteNodes.length, MIN_SPHERE_NODE_COUNT));
+  const noteDirectionIndices = pickShellIndices(shellDirections.length, unpositionedNoteNodes.length);
 
   unpositionedNoteNodes.forEach((node, index) => {
-    const direction = distributedNotePositions[index] ?? [0, 0, 1];
+    const direction = shellDirections[noteDirectionIndices[index] ?? index] ?? [0, 0, 1];
     computedPositions.set(node.id, projectPointToSphere(direction));
   });
+
+  const scaffoldDirections = shellDirections.filter((_, index) => !noteDirectionIndices.includes(index));
+  const scaffoldNodes: SphereGraphNode[] =
+    noteNodes.length < MIN_SPHERE_NODE_COUNT
+      ? scaffoldDirections.slice(0, MIN_SPHERE_NODE_COUNT - noteNodes.length).map((direction, index) => {
+          const position = projectPointToSphere(direction);
+          return {
+            id: `ghost:shell-${index}`,
+            label: "",
+            type: "ghost",
+            degree: 0,
+            x: 0,
+            y: 0,
+            radius: 3.3,
+            cluster: "Shell",
+            isHub: false,
+            position,
+            normal: toNormal(position)
+          };
+        })
+      : [];
 
   const positionedNodes: SphereGraphNode[] = flatGraph.nodes.map((node, index) => {
     const note = node.noteId ? noteById.get(node.noteId) : null;
@@ -126,7 +161,7 @@ export function buildSphericalVaultGraph(notes: VaultNote[], links?: VaultLink[]
   });
 
   return {
-    nodes: positionedNodes,
+    nodes: [...positionedNodes, ...scaffoldNodes],
     edges: flatGraph.edges
   };
 }
