@@ -233,6 +233,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const graph = useMemo(() => buildSphericalVaultGraph(notes, links), [links, notes]);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [lockedNodeId, setLockedNodeId] = useState<string | null>(selectedNote ? `note:${selectedNote.id}` : ROOT_NODE_ID);
+  const [previewCardNodeId, setPreviewCardNodeId] = useState<string | null>(selectedNote ? `note:${selectedNote.id}` : ROOT_NODE_ID);
   const [searchInput, setSearchInput] = useState("");
   const [scale, setScale] = useState(DEFAULT_SCALE);
   const [isCreating, setIsCreating] = useState(false);
@@ -412,7 +413,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   }, [nodeById, noteNodeIdByNoteId, searchMatches]);
 
   const activeNodeId = hoveredNodeId ?? searchMatchNode?.id ?? lockedNodeId ?? ROOT_NODE_ID;
-  const previewNodeId = lockedNodeId ?? searchMatchNode?.id ?? ROOT_NODE_ID;
+  const previewNodeId = previewCardNodeId ?? searchMatchNode?.id ?? lockedNodeId ?? ROOT_NODE_ID;
   const neighborhoodDepths = useMemo(() => buildDepthMap(activeNodeId, adjacency), [activeNodeId, adjacency]);
   const neighborhood = useMemo(() => new Set(neighborhoodDepths.keys()), [neighborhoodDepths]);
 
@@ -540,10 +541,12 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   useEffect(() => {
     if (selectedNote) {
       setLockedNodeId(`note:${selectedNote.id}`);
+      setPreviewCardNodeId((current) => current ?? `note:${selectedNote.id}`);
       return;
     }
 
     setLockedNodeId((current) => current ?? ROOT_NODE_ID);
+    setPreviewCardNodeId((current) => current ?? ROOT_NODE_ID);
   }, [selectedNote]);
 
   const previewNode = previewNodeId ? nodeById.get(previewNodeId) ?? null : null;
@@ -612,6 +615,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
 
   const handleNodeClick = (nodeId: string) => {
     setLockedNodeId(nodeId);
+    setPreviewCardNodeId(nodeId);
     setHoveredNodeId(null);
     setPulseWave({ nodeId, startedAt: performance.now() });
 
@@ -1006,6 +1010,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
                   onMouseEnter={() => {
                     hoverPauseRef.current = true;
                     setHoveredNodeId(node.id);
+                    setPreviewCardNodeId(node.id);
                   }}
                   onMouseLeave={() => {
                     hoverPauseRef.current = false;
@@ -1057,7 +1062,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
           style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
           className="absolute inset-x-3 z-20 flex flex-col items-center max-sm:inset-x-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px]"
         >
-          <div className="vault-ambient-panel flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-[rgba(6,10,20,0.34)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[22px] max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:bg-[rgba(6,10,20,0.38)] max-sm:p-3.5 md:backdrop-blur-[28px]">
+          <div className="vault-ambient-panel flex w-full flex-col rounded-[30px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(6,10,20,0.16),rgba(6,10,20,0.05))] p-5 shadow-[0_18px_56px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.05)] backdrop-blur-[5px] max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:bg-[linear-gradient(180deg,rgba(6,10,20,0.12),rgba(6,10,20,0.03))] max-sm:p-3.5 2xl:bg-[linear-gradient(180deg,rgba(6,10,20,0.22),rgba(6,10,20,0.08))] 2xl:backdrop-blur-[10px]">
             <div>
               <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
                 {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}
