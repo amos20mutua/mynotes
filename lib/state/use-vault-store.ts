@@ -16,8 +16,8 @@ type VaultState = {
   hasHydratedInitialData: boolean;
   initializeVault: (data: VaultData) => void;
   loadVault: () => Promise<void>;
-  createNote: (input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>) => Promise<void>;
-  updateNote: (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>) => Promise<void>;
+  createNote: (input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>;
+  updateNote: (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>;
   selectNote: (noteId: string) => void;
   deleteNote: (noteId: string) => Promise<void>;
 };
@@ -70,6 +70,7 @@ export const useVaultStore = create<VaultState>((set, get) => ({
       tags: input?.tags ?? [],
       isPinned: input?.isPinned ?? false,
       status: input?.status ?? "draft",
+      schedule: input?.schedule,
       graphPosition: input?.graphPosition,
       createdAt: timestamp,
       updatedAt: timestamp

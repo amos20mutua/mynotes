@@ -15,18 +15,8 @@ type GraphViewProps = {
   onSelectNote: (noteId: string) => void;
   onOpenLinkedNote: (title: string) => void;
   onOpenEditor: () => void;
-  onCreateNoteAtPoint: (title: string, graphPosition: { x: number; y: number; z: number }, connectToTitle?: string) => Promise<void>;
+  onCreateNoteAtPoint: (graphPosition: { x: number; y: number; z: number }, connectToTitle?: string) => Promise<void>;
   onDeleteNote: (noteId: string) => Promise<void>;
-};
-
-type ComposerState = {
-  x: number;
-  y: number;
-  graphX: number;
-  graphY: number;
-  graphZ: number;
-  title: string;
-  connectToTitle?: string;
 };
 
 type ProjectedNode = {
@@ -60,6 +50,13 @@ const SPHERE_CENTER_Y = VIEWPORT_HEIGHT * 0.37;
 const AUTO_ROTATE_SPEED = 0.00018;
 const ACTIVE_LINE_COLOR = "#b36a67";
 const HOVER_LINE_COLOR = "#946363";
+const SEARCH_MATCH_PALETTE = {
+  fill: "#91525a",
+  selected: "#c7757e",
+  glow: "rgba(199,117,126,0.26)",
+  label: "#f7ecee",
+  frontLabel: "#fff7f8"
+} as const;
 
 const clusterPalette = [
   { fill: "#c89a4a", selected: "#efbf72", glow: "rgba(239, 191, 114, 0.24)", edge: "rgba(200, 154, 74, 0.15)", label: "#f4efe6", frontLabel: "#fffaf2" },
@@ -191,7 +188,6 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const [scale, setScale] = useState(DEFAULT_SCALE);
-  const [composer, setComposer] = useState<ComposerState | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [rotationX, setRotationX] = useState(-0.18);
   const [rotationY, setRotationY] = useState(0.24);
@@ -262,7 +258,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
       const delta = time - lastTime;
       lastTime = time;
 
-      if (!draggingRef.current && !hoverPauseRef.current && !composer) {
+      if (!draggingRef.current && !hoverPauseRef.current) {
         setRotationY((value) => value + delta * AUTO_ROTATE_SPEED);
       }
 
@@ -271,7 +267,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
 
     frame = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frame);
-  }, [composer]);
+  }, []);
 
   const searchMatchNode = useMemo(() => {
     if (!query) {
@@ -404,16 +400,17 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
     }
   };
 
-  const openComposerAt = (clientX: number, clientY: number, graphX: number, graphY: number, graphZ = 0) => {
-    setComposer({
-      x: clientX,
-      y: clientY,
-      graphX,
-      graphY,
-      graphZ,
-      title: "",
-      connectToTitle: previewNote?.title ?? selectedNote?.title
-    });
+  const handleCreateFromGraph = async (graphPosition: { x: number; y: number; z: number }) => {
+    if (isCreating) {
+      return;
+    }
+
+    try {
+      setIsCreating(true);
+      await onCreateNoteAtPoint(graphPosition, previewNote?.title ?? selectedNote?.title);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const getSpherePositionFromPointer = (clientX: number, clientY: number) => {
@@ -449,6 +446,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
   } as const;
   const mobileHeaderOffset = showInstallHelp ? "calc(env(safe-area-inset-top, 0px) + 122px)" : "calc(env(safe-area-inset-top, 0px) + 12px)";
   const topBarStyle = isMobile ? { top: mobileHeaderOffset } : safeTopStyle;
+  const graphVerticalOffset = isMobile ? -34 : 0;
   const installSheetStyle = {
     top: "calc(env(safe-area-inset-top, 0px) + 12px)"
   } as const;
@@ -619,10 +617,10 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             }
 
             const spherePoint = getSpherePositionFromPointer(event.clientX, event.clientY);
-            openComposerAt(event.clientX, event.clientY, spherePoint.x, spherePoint.y, spherePoint.z);
+            void handleCreateFromGraph({ x: spherePoint.x, y: spherePoint.y, z: spherePoint.z });
           }}
         >
-          <g transform={`translate(${VIEWPORT_WIDTH * (1 - scale) * 0.5} ${VIEWPORT_HEIGHT * (1 - scale) * 0.5}) scale(${scale})`}>
+          <g transform={`translate(${VIEWPORT_WIDTH * (1 - scale) * 0.5} ${VIEWPORT_HEIGHT * (1 - scale) * 0.5 + graphVerticalOffset}) scale(${scale})`}>
             {graph.edges.map((edge) => {
               const source = projectedNodeById.get(edge.source);
               const target = projectedNodeById.get(edge.target);
@@ -664,16 +662,18 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                     : getClusterColor(baseNode.cluster);
               const selected = node.id === activeNodeId;
               const hovered = node.id === hoveredNodeId;
+              const searchMatched = query.length > 0 && node.id === searchMatchNode?.id;
               const depth = neighborhoodDepths.get(node.id) ?? null;
               const visibleByQuery = filteredNodeIds.has(node.id);
               const frontFactor = clamp((node.z + 1) / 2, 0, 1);
               const radius = node.radius * (selected ? 1.16 : hovered ? 1.08 : depth === 1 ? 1.03 : 1);
-              const nodeOpacity = !visibleByQuery ? 0.06 : selected ? 1 : hovered ? 0.92 : depth === 1 ? 0.8 : depth === 2 ? 0.46 : 0.12 + frontFactor * 0.42;
-              const haloOpacity = selected ? 0.28 : hovered ? 0.14 : depth === 1 ? 0.08 : 0.02;
+              const displayPalette = searchMatched ? SEARCH_MATCH_PALETTE : palette;
+              const nodeOpacity = !visibleByQuery ? 0.06 : searchMatched ? 0.98 : selected ? 1 : hovered ? 0.92 : depth === 1 ? 0.8 : depth === 2 ? 0.46 : 0.12 + frontFactor * 0.42;
+              const haloOpacity = searchMatched ? 0.24 : selected ? 0.28 : hovered ? 0.14 : depth === 1 ? 0.08 : 0.02;
               const showLabel = selected || hovered || depth === 1 || (baseNode.isHub && frontFactor > 0.62) || (visibleByQuery && frontFactor > 0.8 && node.radius > 5.5);
               const labelOpacity = selected ? 1 : hovered ? 0.96 : depth === 1 ? 0.84 : 0.42 + frontFactor * 0.42;
-              const labelColor = selected || frontFactor > 0.72 ? palette.frontLabel : palette.label;
-              const nodeFill = selected ? palette.selected : hovered ? palette.selected : palette.fill;
+              const labelColor = searchMatched ? displayPalette.frontLabel : selected || frontFactor > 0.72 ? displayPalette.frontLabel : displayPalette.label;
+              const nodeFill = searchMatched ? displayPalette.selected : selected ? displayPalette.selected : hovered ? displayPalette.selected : displayPalette.fill;
 
               return (
                 <g
@@ -694,7 +694,7 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
                   }}
                 >
                   <circle r={Math.max(radius * 2.1, 12)} fill="transparent" />
-                  <circle r={radius * 1.8} fill={palette.glow} opacity={haloOpacity} />
+                  <circle r={radius * 1.8} fill={displayPalette.glow} opacity={haloOpacity} />
                   <circle r={radius} fill={nodeFill} fillOpacity={nodeOpacity} />
                   {showLabel ? (
                     <g transform={`translate(${radius + 8} ${-Math.max(2, radius * 0.25)})`} opacity={labelOpacity}>
@@ -799,13 +799,13 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
               type="button"
               onClick={() => {
                 const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-                openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
+                void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
               }}
               className="rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.16)] px-4 py-2 text-xs font-medium text-[#fff4de] shadow-[0_16px_40px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
             >
               <span className="inline-flex items-center gap-2">
                 <Plus className="size-3.5" />
-                New note
+                {isCreating ? "Opening..." : "New"}
               </span>
             </button>
           </div>
@@ -819,72 +819,18 @@ export function GraphView({ notes, links, selectedNote, onSelectNote, onOpenLink
             type="button"
             onClick={() => {
               const defaultPoint = inverseRotatePoint({ x: 0, y: 0, z: 1 }, rotationX, rotationY);
-              openComposerAt(window.innerWidth / 2 - 150, window.innerHeight - 180, defaultPoint.x, defaultPoint.y, defaultPoint.z);
+              void handleCreateFromGraph({ x: defaultPoint.x, y: defaultPoint.y, z: defaultPoint.z });
             }}
             className="rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.16)] px-5 py-3 text-sm font-medium text-[#fff4de] shadow-[0_24px_70px_rgba(0,0,0,0.24)] backdrop-blur-2xl transition hover:bg-[rgba(239,191,114,0.24)]"
           >
             <span className="inline-flex items-center gap-2">
               <Plus className="size-4" />
-              New note
+              {isCreating ? "Opening..." : "New"}
             </span>
           </button>
         </div>
       )}
 
-      {composer ? (
-        <div
-          className="fixed z-40 w-[280px] rounded-[26px] border border-white/10 bg-slate-950/74 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl max-sm:inset-x-4 max-sm:bottom-[calc(env(safe-area-inset-bottom,0px)+28px)] max-sm:top-auto max-sm:w-auto"
-          style={{
-            left: isMobile ? undefined : Math.min(composer.x, window.innerWidth - 304),
-            top: isMobile ? undefined : Math.min(composer.y, window.innerHeight - 180)
-          }}
-        >
-          <p className="text-sm font-semibold text-white">Quick capture</p>
-          <p className="mt-1 text-xs text-slate-500">Press Enter to place a new note into the sphere.</p>
-          <Input
-            autoFocus
-            value={composer.title}
-            onChange={(event) => setComposer((value) => (value ? { ...value, title: event.target.value } : value))}
-            placeholder="Note title"
-            className="mt-3"
-            onKeyDown={async (event) => {
-              if (event.key === "Escape") {
-                setComposer(null);
-                return;
-              }
-
-              if (event.key === "Enter" && composer.title.trim()) {
-                event.preventDefault();
-                setIsCreating(true);
-                await onCreateNoteAtPoint(composer.title.trim(), { x: composer.graphX, y: composer.graphY, z: composer.graphZ }, composer.connectToTitle);
-                setIsCreating(false);
-                setComposer(null);
-              }
-            }}
-          />
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setComposer(null)} className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-white/8">
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                if (!composer.title.trim()) {
-                  return;
-                }
-
-                setIsCreating(true);
-                await onCreateNoteAtPoint(composer.title.trim(), { x: composer.graphX, y: composer.graphY, z: composer.graphZ }, composer.connectToTitle);
-                setIsCreating(false);
-                setComposer(null);
-              }}
-              className="rounded-full bg-cyan-300 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-200"
-            >
-              {isCreating ? "Creating..." : "Create"}
-            </button>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

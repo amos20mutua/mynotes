@@ -39,6 +39,15 @@ export function normalizeVaultNote(note: VaultNote): VaultNote {
     tags: Array.from(new Set((note.tags ?? []).map((tag) => tag.trim()).filter(Boolean))),
     isPinned: note.isPinned ?? false,
     status: note.status ?? "active",
+    schedule:
+      note.schedule && typeof note.schedule.date === "string" && note.schedule.date.trim()
+        ? {
+            date: note.schedule.date,
+            ...(note.schedule.time?.trim() ? { time: note.schedule.time.trim() } : {}),
+            ...(typeof note.schedule.done === "boolean" ? { done: note.schedule.done } : {}),
+            ...(typeof note.schedule.reminderMinutes === "number" ? { reminderMinutes: note.schedule.reminderMinutes } : {})
+          }
+        : undefined,
     graphPosition:
       note.graphPosition &&
       Number.isFinite(note.graphPosition.x) &&

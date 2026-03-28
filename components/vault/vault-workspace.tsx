@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowLeft, Check, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Italic, Link2, List, ListTodo, LoaderCircle, Plus, Quote, ScanText, Trash2, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import type { RecognizeResult } from "tesseract.js";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { GraphErrorBoundary } from "@/components/vault/graph-error-boundary";
@@ -12,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { defaultVaultData } from "@/lib/vault/default-vault";
 import { getBacklinks, normalizeTitle } from "@/lib/vault/graph";
 import { getSelectedNote, useVaultStore } from "@/lib/state/use-vault-store";
-import type { VaultData, VaultNote } from "@/types";
+import type { VaultData, VaultNote, VaultNoteSchedule } from "@/types";
 
 type VaultWorkspaceProps = {
   initialVault: VaultData;
@@ -27,13 +28,171 @@ function formatUpdatedAt(value: string) {
   }).format(new Date(value));
 }
 
+function stripLeadingTitleHeading(title: string, content: string) {
+  const trimmedTitle = title.trim();
+  if (!trimmedTitle) {
+    return content;
+  }
+
+  const lines = content.split("\n");
+  const firstLine = lines[0]?.trim() ?? "";
+  const normalizedFirstLine = firstLine.replace(/^#{1,2}\s+/, "").trim();
+
+  if (!firstLine.match(/^#{1,2}\s+/) || normalizeTitle(normalizedFirstLine) !== normalizeTitle(trimmedTitle)) {
+    return content;
+  }
+
+  return lines.slice(1).join("\n").replace(/^\n+/, "");
+}
+
+function scheduleToTimestamp(schedule?: VaultNoteSchedule) {
+  if (!schedule?.date) {
+    return null;
+  }
+
+  const value = `${schedule.date}T${schedule.time?.trim() || "09:00"}:00`;
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function formatScheduleLabel(schedule?: VaultNoteSchedule) {
+  const timestamp = scheduleToTimestamp(schedule);
+  if (!timestamp) {
+    return "Not scheduled";
+  }
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    ...(schedule?.time ? { hour: "numeric", minute: "2-digit" } : {})
+  }).format(new Date(timestamp));
+}
+
+function cleanRecognizedNoteText(raw: string) {
+  const lines = raw
+    .replace(/\r/g, "")
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const merged: string[] = [];
+
+  for (const line of lines) {
+    const previous = merged.at(-1);
+
+    if (
+      previous &&
+      previous.length > 0 &&
+      previous.length < 72 &&
+      !/[.!?:)]$/.test(previous) &&
+      !/^[-*•#>\d]/.test(line) &&
+      !/^[A-Z\s]{4,}$/.test(line)
+    ) {
+      merged[merged.length - 1] = `${previous} ${line}`;
+      continue;
+    }
+
+    merged.push(line);
+  }
+
+  return merged.join("\n");
+}
+
+function buildImportedTextBlock(text: string) {
+  const cleaned = cleanRecognizedNoteText(text);
+  const timestamp = new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date());
+
+  return cleaned ? `## Imported from camera\n\n_Captured ${timestamp}_\n\n${cleaned}\n\n` : "";
+}
+
+type MarkdownSelection = {
+  start: number;
+  end: number;
+};
+
+type MarkdownEditResult = {
+  value: string;
+  selectionStart: number;
+  selectionEnd: number;
+};
+
+type MarkdownTool = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  run: (value: string, selection: MarkdownSelection) => MarkdownEditResult;
+};
+
+function wrapSelection(value: string, selection: MarkdownSelection, before: string, after: string, placeholder: string) {
+  const selectedText = value.slice(selection.start, selection.end);
+  const inner = selectedText || placeholder;
+  const nextValue = `${value.slice(0, selection.start)}${before}${inner}${after}${value.slice(selection.end)}`;
+  const selectionStart = selection.start + before.length;
+  const selectionEnd = selectionStart + inner.length;
+
+  return {
+    value: nextValue,
+    selectionStart,
+    selectionEnd
+  };
+}
+
+function prefixSelectedLines(value: string, selection: MarkdownSelection, prefix: string) {
+  const lineStart = value.lastIndexOf("\n", Math.max(0, selection.start - 1)) + 1;
+  const nextBreak = value.indexOf("\n", selection.end);
+  const lineEnd = nextBreak === -1 ? value.length : nextBreak;
+  const block = value.slice(lineStart, lineEnd);
+  const lines = block.split("\n");
+  const nextBlock = lines.map((line) => `${prefix}${line}`).join("\n");
+
+  return {
+    value: `${value.slice(0, lineStart)}${nextBlock}${value.slice(lineEnd)}`,
+    selectionStart: lineStart,
+    selectionEnd: lineStart + nextBlock.length
+  };
+}
+
+const markdownTools: MarkdownTool[] = [
+  { id: "h1", label: "Heading 1", icon: Heading1, run: (value, selection) => prefixSelectedLines(value, selection, "# ") },
+  { id: "h2", label: "Heading 2", icon: Heading2, run: (value, selection) => prefixSelectedLines(value, selection, "## ") },
+  { id: "bold", label: "Bold", icon: Bold, run: (value, selection) => wrapSelection(value, selection, "**", "**", "Bold text") },
+  { id: "italic", label: "Italic", icon: Italic, run: (value, selection) => wrapSelection(value, selection, "_", "_", "Italic text") },
+  { id: "bullet", label: "Bullet list", icon: List, run: (value, selection) => prefixSelectedLines(value, selection, "- ") },
+  { id: "todo", label: "Checklist", icon: ListTodo, run: (value, selection) => prefixSelectedLines(value, selection, "- [ ] ") },
+  { id: "quote", label: "Quote", icon: Quote, run: (value, selection) => prefixSelectedLines(value, selection, "> ") },
+  {
+    id: "link",
+    label: "Link",
+    icon: Link2,
+    run: (value, selection) => {
+      const selectedText = value.slice(selection.start, selection.end);
+      const text = selectedText || "Link text";
+      const url = "https://example.com";
+      const insertion = `[${text}](${url})`;
+      const valueWithLink = `${value.slice(0, selection.start)}${insertion}${value.slice(selection.end)}`;
+      const urlStart = selection.start + text.length + 3;
+
+      return {
+        value: valueWithLink,
+        selectionStart: urlStart,
+        selectionEnd: urlStart + url.length
+      };
+    }
+  }
+];
+
 function openExistingOrCreateLinkedNote(
   title: string,
   notes: VaultNote[],
   selectedNote: VaultNote | null,
   selectNote: (noteId: string) => void,
-  createNote: (input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>) => Promise<void>,
-  updateNote: (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>) => Promise<void>
+  createNote: (input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>,
+  updateNote: (noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) => Promise<void>
 ) {
   const existing = notes.find((note) => normalizeTitle(note.title) === normalizeTitle(title));
 
@@ -47,7 +206,7 @@ function openExistingOrCreateLinkedNote(
     colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
     folder: selectedNote?.folder ?? "Vault",
     status: "draft",
-    content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Vault"}]]`
+    content: `Linked from [[${selectedNote?.title ?? "Welcome to Vault"}]]\n\n`
   }).then(async () => {
     const latest = useVaultStore.getState().notes[0];
 
@@ -56,7 +215,7 @@ function openExistingOrCreateLinkedNote(
         title,
         colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
         folder: selectedNote?.folder ?? "Vault",
-        content: `# ${title}\n\nLinked from [[${selectedNote?.title ?? "Welcome to Vault"}]]`
+        content: `Linked from [[${selectedNote?.title ?? "Welcome to Vault"}]]\n\n`
       });
       selectNote(latest.id);
     }
@@ -88,8 +247,16 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     return window.matchMedia("(max-width: 768px)").matches;
   });
   const [keyboardInset, setKeyboardInset] = useState(0);
+  const [draftNoteId, setDraftNoteId] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftContent, setDraftContent] = useState("");
+  const [isRecognizingText, setIsRecognizingText] = useState(false);
+  const [recognitionProgress, setRecognitionProgress] = useState(0);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusFreshNoteRef = useRef(false);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
   const seedNotes = initialVault.notes.length > 0 ? initialVault.notes : defaultVaultData.notes;
   const seedLinks = initialVault.links.length > 0 ? initialVault.links : defaultVaultData.links;
@@ -98,6 +265,12 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const effectiveSelectedNoteId = isLoaded ? selectedNoteId : seedNotes[0]?.id ?? "";
   const selectedNote = getSelectedNote(effectiveNotes, effectiveSelectedNoteId);
   const backlinks = getBacklinks(effectiveNotes, selectedNote, effectiveLinks);
+  const upcomingScheduledNotes = [...effectiveNotes]
+    .filter((note) => note.schedule?.date && !note.schedule.done)
+    .map((note) => ({ note, timestamp: scheduleToTimestamp(note.schedule) }))
+    .filter((item): item is { note: VaultNote; timestamp: number } => item.timestamp !== null)
+    .sort((left, right) => left.timestamp - right.timestamp)
+    .slice(0, isCompact ? 4 : 6);
 
   useEffect(() => {
     if (!hasHydratedInitialData) {
@@ -193,8 +366,22 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     };
   }, []);
 
-  async function queueSave(updates: Partial<Pick<VaultNote, "title" | "content">>) {
-    if (!selectedNote) {
+  useEffect(() => {
+    if (activeView !== "note" || !focusFreshNoteRef.current) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+      focusFreshNoteRef.current = false;
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeView, selectedNote?.id]);
+
+  async function queueSave(noteId: string, updates: Partial<Pick<VaultNote, "title" | "content" | "schedule">>) {
+    if (!noteId) {
       return;
     }
 
@@ -204,11 +391,135 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await updateNote(selectedNote.id, updates);
+        await updateNote(noteId, updates);
       } catch {
         toast.error("Could not save note");
       }
     }, 420);
+  }
+
+  async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
+    const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
+    const initialContent = anchorTitle ? `Linked from [[${anchorTitle}]]\n\n` : "";
+
+    try {
+      await createNote({
+        title: "Untitled note",
+        content: initialContent,
+        colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
+        folder: selectedNote?.folder ?? "Vault",
+        status: "draft",
+        graphPosition
+      });
+      focusFreshNoteRef.current = true;
+      setActiveView("note");
+    } catch {
+      toast.error("Could not create note");
+    }
+  }
+
+  async function updateSchedule(updates: Partial<VaultNoteSchedule>) {
+    if (!selectedNote) {
+      return;
+    }
+
+    const currentSchedule = selectedNote.schedule ?? { date: "" };
+    const nextSchedule = {
+      ...currentSchedule,
+      ...updates
+    };
+
+    const normalizedSchedule = nextSchedule.date.trim()
+      ? {
+          date: nextSchedule.date,
+          ...(nextSchedule.time?.trim() ? { time: nextSchedule.time.trim() } : {}),
+          ...(typeof nextSchedule.done === "boolean" ? { done: nextSchedule.done } : {}),
+          ...(typeof nextSchedule.reminderMinutes === "number" ? { reminderMinutes: nextSchedule.reminderMinutes } : {})
+        }
+      : undefined;
+
+    try {
+      await updateNote(selectedNote.id, { schedule: normalizedSchedule });
+    } catch {
+      toast.error("Could not save schedule");
+    }
+  }
+
+  async function absorbCapturedNote(file: File) {
+    if (!selectedNote) {
+      return;
+    }
+
+    try {
+      setIsRecognizingText(true);
+      setRecognitionProgress(0.06);
+
+      const { recognize } = await import("tesseract.js");
+      const result = (await recognize(file, "eng", {
+        logger: (message) => {
+          if (message.status === "recognizing text" && typeof message.progress === "number") {
+            setRecognitionProgress(0.12 + message.progress * 0.82);
+          }
+        }
+      })) as RecognizeResult;
+
+      const importedBlock = buildImportedTextBlock(result.data.text);
+
+      if (!importedBlock) {
+        toast.error("No readable text was found in that photo");
+        return;
+      }
+
+      const textarea = textareaRef.current;
+      const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
+      const selectionStart = textarea?.selectionStart ?? currentContent.length;
+      const selectionEnd = textarea?.selectionEnd ?? currentContent.length;
+      const prefixNeedsSpacing = selectionStart > 0 && !currentContent.slice(0, selectionStart).endsWith("\n\n");
+      const insertValue = `${prefixNeedsSpacing ? "\n\n" : ""}${importedBlock}`;
+      const nextContent = `${currentContent.slice(0, selectionStart)}${insertValue}${currentContent.slice(selectionEnd)}`;
+      const caretPosition = selectionStart + insertValue.length;
+
+      setDraftNoteId(selectedNote.id);
+      setDraftContent(nextContent);
+      await queueSave(selectedNote.id, { content: nextContent });
+
+      window.requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+        textareaRef.current?.setSelectionRange(caretPosition, caretPosition);
+      });
+
+      toast.success("Photo converted into note text");
+    } catch {
+      toast.error("Could not extract text from that photo");
+    } finally {
+      setIsRecognizingText(false);
+      setRecognitionProgress(0);
+      if (cameraInputRef.current) {
+        cameraInputRef.current.value = "";
+      }
+    }
+  }
+
+  function applyMarkdownTool(tool: MarkdownTool) {
+    if (!selectedNote || !textareaRef.current) {
+      return;
+    }
+
+    const textarea = textareaRef.current;
+    const currentContent = draftNoteId === selectedNote.id ? draftContent : stripLeadingTitleHeading(selectedNote.title, selectedNote.content);
+    const result = tool.run(currentContent, {
+      start: textarea.selectionStart,
+      end: textarea.selectionEnd
+    });
+
+    setDraftNoteId(selectedNote.id);
+    setDraftContent(result.value);
+    void queueSave(selectedNote.id, { content: result.value });
+
+    window.requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
   }
 
   async function openLinkedNote(title: string) {
@@ -233,6 +544,187 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         minute: "2-digit"
       }).format(new Date(selectedNote.updatedAt))
     : "";
+  const isKeyboardOpen = isCompact && keyboardInset > 0;
+  const editorTitle = selectedNote && draftNoteId === selectedNote.id ? draftTitle : selectedNote?.title ?? "";
+  const editorContent =
+    selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
+  const selectedSchedule = selectedNote?.schedule;
+
+  const editorToolbar = (
+    <div
+      className={
+        isCompact
+          ? "pointer-events-auto mx-auto flex w-full max-w-[420px] items-center gap-2 overflow-x-auto rounded-[26px] border border-white/10 bg-[rgba(12,16,24,0.92)] px-2.5 py-2 shadow-[0_22px_70px_rgba(0,0,0,0.34)] backdrop-blur-2xl"
+          : "flex flex-wrap items-center gap-2 rounded-[24px] border border-white/10 bg-black/20 p-3"
+      }
+    >
+      <button
+        type="button"
+        onClick={() => cameraInputRef.current?.click()}
+        className={
+          isCompact
+            ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
+            : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-[rgba(239,191,114,0.18)] bg-[rgba(239,191,114,0.1)] text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.16)]"
+        }
+        aria-label="Scan handwritten or printed notes"
+        title="Scan note photo"
+        disabled={isRecognizingText}
+      >
+        {isRecognizingText ? <LoaderCircle className="size-4 animate-spin" /> : <ScanText className={isCompact ? "size-4.5" : "size-4"} />}
+      </button>
+      {markdownTools.map((tool) => {
+        const Icon = tool.icon;
+
+        return (
+          <button
+            key={tool.id}
+            type="button"
+            onClick={() => applyMarkdownTool(tool)}
+            className={
+              isCompact
+                ? "inline-flex h-10 min-w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/88 transition hover:bg-white/12"
+                : "inline-flex h-10 min-w-10 items-center justify-center rounded-full border border-white/10 bg-white/6 text-white/84 transition hover:bg-white/12"
+            }
+            aria-label={tool.label}
+            title={tool.label}
+          >
+            <Icon className={isCompact ? "size-4.5" : "size-4"} />
+          </button>
+        );
+      })}
+      {!isCompact ? (
+        <p className="ml-auto text-xs uppercase tracking-[0.22em] text-slate-500">
+          {isRecognizingText ? `Scanning ${(recognitionProgress * 100).toFixed(0)}%` : "Markdown tools"}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const schedulePanel = selectedNote ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Schedule</p>
+          <p className={isCompact ? "mt-1 text-sm text-white/72" : "mt-1 text-sm text-slate-300"}>{formatScheduleLabel(selectedSchedule)}</p>
+        </div>
+        {selectedSchedule?.date ? (
+          <button
+            type="button"
+            onClick={() => {
+              void updateSchedule({ date: "", time: "", done: false });
+            }}
+            className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/74 transition hover:bg-white/8"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="space-y-2">
+          <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+            <CalendarDays className="size-3.5" />
+            Date
+          </span>
+          <Input
+            type="date"
+            value={selectedSchedule?.date ?? ""}
+            onChange={(event) => {
+              void updateSchedule({ date: event.target.value, done: false });
+            }}
+            className={isCompact ? "h-11 rounded-2xl" : undefined}
+          />
+        </label>
+        <label className="space-y-2">
+          <span className="inline-flex items-center gap-2 text-xs text-slate-400">
+            <Clock3 className="size-3.5" />
+            Time
+          </span>
+          <Input
+            type="time"
+            value={selectedSchedule?.time ?? ""}
+            onChange={(event) => {
+              void updateSchedule({ time: event.target.value });
+            }}
+            className={isCompact ? "h-11 rounded-2xl" : undefined}
+          />
+        </label>
+      </div>
+      {selectedSchedule?.date ? (
+        <button
+          type="button"
+          onClick={() => {
+            void updateSchedule({ done: !selectedSchedule.done });
+          }}
+          className={`mt-4 inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm transition ${
+            selectedSchedule.done
+              ? "border-[rgba(239,191,114,0.24)] bg-[rgba(239,191,114,0.14)] text-[#fff4de]"
+              : "border-white/10 bg-white/6 text-white/84 hover:bg-white/10"
+          }`}
+        >
+          <Check className="size-4" />
+          {selectedSchedule.done ? "Marked complete" : "Mark complete"}
+        </button>
+      ) : null}
+    </div>
+  ) : null;
+
+  const capturePanel = selectedNote ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-2">
+            <Camera className="size-4 text-[color:var(--accent-amber)]" />
+            <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Scan into note</p>
+          </div>
+          <p className={isCompact ? "mt-2 text-sm leading-6 text-white/72" : "mt-2 text-sm text-slate-300"}>
+            Take a photo of handwritten or printed notes and convert them straight into editable text.
+          </p>
+          {isRecognizingText ? (
+            <p className="mt-2 text-xs text-[color:var(--accent-amber)]">Extracting text... {(recognitionProgress * 100).toFixed(0)}%</p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => cameraInputRef.current?.click()}
+          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[rgba(239,191,114,0.2)] bg-[rgba(239,191,114,0.12)] px-3.5 py-2 text-sm font-medium text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
+          disabled={isRecognizingText}
+        >
+          {isRecognizingText ? <LoaderCircle className="size-4 animate-spin" /> : <Camera className="size-4" />}
+          {isRecognizingText ? "Scanning" : "Capture"}
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  const upcomingPanel = upcomingScheduledNotes.length ? (
+    <div className={isCompact ? `${isKeyboardOpen ? "hidden" : "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <CalendarDays className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Upcoming</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {upcomingScheduledNotes.map(({ note }) => (
+          <button
+            key={note.id}
+            type="button"
+            onClick={() => {
+              selectNote(note.id);
+              setActiveView("note");
+            }}
+            className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-white">{note.title}</span>
+              <span className="mt-1 block text-xs text-slate-400">{formatScheduleLabel(note.schedule)}</span>
+            </span>
+            <span className="ml-3 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+              {note.schedule?.done ? "Done" : "Next"}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
 
   if (loadError && effectiveNotes.length === 0) {
     return (
@@ -271,13 +763,12 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             <Button
               variant="accent"
               type="button"
-              onClick={async () => {
-                await createNote({ colorGroup: "Vault", folder: "Vault", status: "draft" });
-                setActiveView("vault");
+              onClick={() => {
+                void createFreshNote();
               }}
             >
               <Plus className="size-4" />
-              Create first note
+              New
             </Button>
           </div>
         </Card>
@@ -307,16 +798,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               void openLinkedNote(title);
             }}
             onOpenEditor={() => setActiveView("note")}
-            onCreateNoteAtPoint={async (title, graphPosition, connectToTitle) => {
-              const anchorTitle = connectToTitle ?? selectedNote?.title ?? "Welcome to Vault";
-              await createNote({
-                title,
-                colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
-                folder: "Vault",
-                status: "draft",
-                graphPosition,
-                content: `# ${title}\n\nLinked from [[${anchorTitle}]]\n\n`
-              });
+            onCreateNoteAtPoint={async (graphPosition, connectToTitle) => {
+              await createFreshNote(graphPosition, connectToTitle);
             }}
             onDeleteNote={async (noteId) => {
               try {
@@ -343,6 +826,19 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       >
         {selectedNote ? (
           <>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void absorbCapturedNote(file);
+                }
+              }}
+            />
             <div
               className={
                 isCompact
@@ -404,7 +900,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               style={
                 isCompact
                   ? {
-                      paddingBottom: `max(calc(env(safe-area-inset-bottom, 0px) + 136px), ${keyboardInset + 112}px)`
+                      paddingBottom: `max(calc(env(safe-area-inset-bottom, 0px) + 108px), ${keyboardInset + 86}px)`
                     }
                   : undefined
               }
@@ -412,10 +908,13 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               {isCompact ? <p className="pt-3 text-center text-[15px] text-white/45">{noteDateLabel}</p> : null}
 
               <Input
-                key={`${selectedNote.id}-title`}
-                defaultValue={selectedNote.title}
+                ref={titleInputRef}
+                value={editorTitle}
                 onChange={(event) => {
-                  void queueSave({ title: event.target.value });
+                  const nextTitle = event.target.value;
+                  setDraftNoteId(selectedNote.id);
+                  setDraftTitle(nextTitle);
+                  void queueSave(selectedNote.id, { title: nextTitle });
                 }}
                 placeholder="Untitled note"
                 className={
@@ -425,17 +924,30 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 }
               />
 
+              {!isCompact ? editorToolbar : null}
+
               <Textarea
                 ref={textareaRef}
-                key={`${selectedNote.id}-content`}
-                defaultValue={selectedNote.content}
+                value={editorContent}
                 onChange={(event) => {
-                  void queueSave({ content: event.target.value });
+                  const nextContent = event.target.value;
+                  setDraftNoteId(selectedNote.id);
+                  setDraftContent(nextContent);
+                  void queueSave(selectedNote.id, { content: nextContent });
+                }}
+                onPaste={(event) => {
+                  const file = Array.from(event.clipboardData.files).find((entry) => entry.type.startsWith("image/"));
+                  if (!file) {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  void absorbCapturedNote(file);
                 }}
                 placeholder="Write your note in Markdown..."
                 className={
                   isCompact
-                    ? "mt-8 min-h-[56vh] resize-none border-0 bg-transparent px-0 py-0 text-[18px] leading-[1.72] text-white/92 shadow-none focus:border-0"
+                    ? "mt-6 min-h-[56vh] resize-none border-0 bg-transparent px-0 py-0 text-[18px] leading-[1.72] text-white/92 shadow-none focus:border-0"
                     : "min-h-[60vh] resize-none rounded-[32px] border-white/10 bg-black/20 px-6 py-5 text-[17px] leading-8 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                 }
                 style={
@@ -447,7 +959,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                 }
               />
 
-              <div className={isCompact ? "mt-8 space-y-3" : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+              {capturePanel}
+
+              {schedulePanel}
+
+              <div className={isCompact ? `${isKeyboardOpen ? "mt-5 opacity-0 pointer-events-none h-0 overflow-hidden" : "mt-8 space-y-3"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
                 <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Backlinks</p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {backlinks.length ? (
@@ -473,36 +989,16 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
                   )}
                 </div>
               </div>
+
+              {upcomingPanel}
             </div>
 
             {isCompact ? (
               <div
                 className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+18px)]"
-                style={{ bottom: keyboardInset > 0 ? `${keyboardInset}px` : "0px" }}
+                style={{ bottom: keyboardInset > 0 ? `${Math.max(12, keyboardInset - 8)}px` : "0px" }}
               >
-                <div className="pointer-events-auto mx-auto flex max-w-[360px] items-center justify-between rounded-[30px] border border-white/10 bg-white/10 px-3 py-2 shadow-[0_30px_90px_rgba(0,0,0,0.35)] backdrop-blur-2xl">
-                  <button
-                    type="button"
-                    onClick={() => setActiveView("vault")}
-                    className="rounded-full px-3 py-2 text-sm font-medium text-white/82 transition hover:bg-white/10"
-                  >
-                    Graph
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => textareaRef.current?.focus()}
-                    className="rounded-full border border-white/10 bg-white/8 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/12"
-                  >
-                    Write
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}
-                    className="rounded-full px-3 py-2 text-sm font-medium text-white/82 transition hover:bg-white/10"
-                  >
-                    Bottom
-                  </button>
-                </div>
+                {editorToolbar}
               </div>
             ) : null}
           </>
@@ -512,13 +1008,12 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             <Button
               variant="accent"
               type="button"
-              onClick={async () => {
-                await createNote({ folder: "Vault", status: "draft" });
-                setActiveView("vault");
+              onClick={() => {
+                void createFreshNote();
               }}
             >
               <Plus className="size-4" />
-              Create note
+              New
             </Button>
           </div>
         )}

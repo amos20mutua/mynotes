@@ -10,6 +10,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     tags?: string[];
     isPinned?: boolean;
     status?: "draft" | "active" | "archived";
+    schedule?: { date: string; time?: string; done?: boolean; reminderMinutes?: number };
     graphPosition?: { x: number; y: number };
   };
 

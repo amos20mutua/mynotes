@@ -101,6 +101,13 @@ export type Metric = {
 
 export type VaultNoteStatus = "draft" | "active" | "archived";
 
+export type VaultNoteSchedule = {
+  date: string;
+  time?: string;
+  done?: boolean;
+  reminderMinutes?: number;
+};
+
 export type VaultNote = {
   id: string;
   title: string;
@@ -110,6 +117,7 @@ export type VaultNote = {
   tags?: string[];
   isPinned?: boolean;
   status?: VaultNoteStatus;
+  schedule?: VaultNoteSchedule;
   graphPosition?: {
     x: number;
     y: number;

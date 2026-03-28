@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     tags?: string[];
     isPinned?: boolean;
     status?: "draft" | "active" | "archived";
+    schedule?: { date: string; time?: string; done?: boolean; reminderMinutes?: number };
     graphPosition?: { x: number; y: number };
   };
 

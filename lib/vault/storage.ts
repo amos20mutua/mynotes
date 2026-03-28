@@ -55,7 +55,7 @@ export async function writeVault(data: VaultData) {
   return normalized;
 }
 
-export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>) {
+export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>) {
   const vault = await readVault();
   const timestamp = new Date().toISOString();
   const note: VaultNote = {
@@ -67,6 +67,7 @@ export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | 
     tags: input?.tags ?? [],
     isPinned: input?.isPinned ?? false,
     status: input?.status ?? "draft",
+    schedule: input?.schedule,
     graphPosition: input?.graphPosition,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -77,7 +78,7 @@ export async function createVaultNote(input?: Partial<Pick<VaultNote, "title" | 
 
 export async function updateVaultNote(
   noteId: string,
-  updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "graphPosition">>
+  updates: Partial<Pick<VaultNote, "title" | "content" | "colorGroup" | "folder" | "tags" | "isPinned" | "status" | "schedule" | "graphPosition">>
 ) {
   const vault = await readVault();
   const notes = vault.notes.map((note) =>
