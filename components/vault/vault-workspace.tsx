@@ -9,7 +9,7 @@ import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import Highlight from "@tiptap/extension-highlight";
 import { Markdown } from "@tiptap/markdown";
-import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, Italic, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Plus, Quote, Redo2, ScanText, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from "lucide-react";
+import { ArrowLeft, Bold, CalendarDays, Camera, Check, Clock3, Heading1, Heading2, Highlighter, History, Italic, Link2, List, ListOrdered, ListTodo, LoaderCircle, Minus, Plus, Quote, Redo2, ScanText, Sparkles, Strikethrough, Trash2, Underline as UnderlineIcon, Undo2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { RecognizeResult } from "tesseract.js";
@@ -30,6 +30,21 @@ type VaultWorkspaceProps = {
 type DetectedTextBlock = {
   rawValue: string;
 };
+
+type SemanticRelatedNote = {
+  note: VaultNote;
+  score: number;
+  reasons: string[];
+};
+
+const STOP_WORDS = new Set([
+  "the", "and", "for", "with", "that", "this", "from", "into", "your", "have", "will", "about", "there", "their",
+  "them", "they", "then", "than", "when", "where", "what", "which", "while", "were", "been", "being", "also",
+  "just", "some", "more", "most", "very", "much", "such", "only", "even", "over", "under", "back", "through",
+  "note", "notes", "vault", "using", "used", "like", "into", "onto", "across", "inside", "after", "before",
+  "because", "should", "could", "would", "start", "write", "writing", "make", "made", "make", "keep", "keeps",
+  "than", "then", "still", "same", "many", "each", "every", "other", "those", "these"
+]);
 
 function formatUpdatedAt(value: string) {
   return new Intl.DateTimeFormat("en", {
@@ -110,8 +125,150 @@ function cleanRecognizedNoteText(raw: string) {
   return merged.join("\n");
 }
 
+function tokenizeMeaningfulText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/\[\[([^\]]+)\]\]/g, " $1 ")
+    .replace(/[^\p{L}\p{N}\s-]+/gu, " ")
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 2 && !STOP_WORDS.has(token));
+}
+
+function pickTopTokens(value: string, limit = 8) {
+  const frequency = new Map<string, number>();
+
+  for (const token of tokenizeMeaningfulText(value)) {
+    frequency.set(token, (frequency.get(token) ?? 0) + 1);
+  }
+
+  return [...frequency.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+    .slice(0, limit)
+    .map(([token]) => token);
+}
+
+function formatReasonLabel(token: string) {
+  return token
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildSemanticRelatedNotes(notes: VaultNote[], selectedNote: VaultNote | null, backlinks: VaultNote[]) {
+  if (!selectedNote) {
+    return [];
+  }
+
+  const backlinkIds = new Set(backlinks.map((note) => note.id));
+  const selectedTitleTokens = tokenizeMeaningfulText(selectedNote.title);
+  const selectedContentTokens = tokenizeMeaningfulText(selectedNote.content);
+  const selectedTokenSet = new Set([...selectedTitleTokens, ...selectedContentTokens]);
+  const selectedTopTokens = new Set(pickTopTokens(`${selectedNote.title} ${selectedNote.content}`, 10));
+
+  return notes
+    .filter((note) => note.id !== selectedNote.id)
+    .map<SemanticRelatedNote | null>((note) => {
+      const noteTitleTokens = tokenizeMeaningfulText(note.title);
+      const noteContentTokens = tokenizeMeaningfulText(note.content);
+      const noteTokenSet = new Set([...noteTitleTokens, ...noteContentTokens]);
+      const sharedTitleTokens = noteTitleTokens.filter((token) => selectedTokenSet.has(token));
+      const sharedPriorityTokens = [...selectedTopTokens].filter((token) => noteTokenSet.has(token));
+      const sharedContentTokens = noteContentTokens.filter((token) => selectedTokenSet.has(token));
+      const sharedWikiLinks = Array.from(note.content.matchAll(/\[\[([^\]]+)\]\]/g))
+        .map((match) => match[1]?.trim())
+        .filter((value): value is string => Boolean(value))
+        .filter((title) => normalizeTitle(title) === normalizeTitle(selectedNote.title));
+
+      let score = 0;
+      const reasons: string[] = [];
+
+      if (sharedTitleTokens.length > 0) {
+        score += sharedTitleTokens.length * 18;
+        reasons.push(`Shared theme: ${formatReasonLabel(sharedTitleTokens[0])}`);
+      }
+
+      if (sharedPriorityTokens.length > 0) {
+        score += sharedPriorityTokens.length * 12;
+        reasons.push(`Concept overlap: ${formatReasonLabel(sharedPriorityTokens[0])}`);
+      }
+
+      if (sharedContentTokens.length > 0) {
+        score += Math.min(30, sharedContentTokens.length * 4);
+      }
+
+      if (note.folder && selectedNote.folder && note.folder === selectedNote.folder) {
+        score += 10;
+        reasons.push(`Same area: ${note.folder}`);
+      }
+
+      if (backlinkIds.has(note.id) || sharedWikiLinks.length > 0) {
+        score += 24;
+        reasons.push("Directly linked");
+      }
+
+      if ((note.tags ?? []).some((tag) => (selectedNote.tags ?? []).includes(tag))) {
+        score += 8;
+        reasons.push(`Shared tag: ${(note.tags ?? []).find((tag) => (selectedNote.tags ?? []).includes(tag))}`);
+      }
+
+      if (score <= 0) {
+        return null;
+      }
+
+      return {
+        note,
+        score,
+        reasons: Array.from(new Set(reasons)).slice(0, 2)
+      };
+    })
+    .filter((item): item is SemanticRelatedNote => item !== null)
+    .sort((left, right) => right.score - left.score || new Date(right.note.updatedAt).getTime() - new Date(left.note.updatedAt).getTime())
+    .slice(0, 6);
+}
+
+function buildRecentTrail(notes: VaultNote[], selectedNote: VaultNote | null) {
+  return [...notes]
+    .filter((note) => note.id !== selectedNote?.id)
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    .slice(0, 6);
+}
+
+function structureRecognizedNoteText(raw: string) {
+  const cleaned = cleanRecognizedNoteText(raw);
+  const lines = cleaned.split("\n").map((line) => line.trim()).filter(Boolean);
+  const structured: string[] = [];
+  let hasInsertedHeading = false;
+
+  for (const line of lines) {
+    const normalized = line.replace(/\s+/g, " ").trim();
+    const isLikelyHeading = /^[A-Z][A-Za-z0-9 ,:'"()/-]{3,48}$/.test(normalized) && !/[.!?]$/.test(normalized);
+    const isLikelyBullet = /^[-*•]/.test(normalized) || /^\d+[.)]/.test(normalized);
+
+    if (!hasInsertedHeading && isLikelyHeading) {
+      structured.push(`### ${normalized.replace(/^[-*•]\s*/, "")}`);
+      hasInsertedHeading = true;
+      continue;
+    }
+
+    if (isLikelyBullet) {
+      structured.push(`- ${normalized.replace(/^([-*•]|\d+[.)])\s*/, "")}`);
+      continue;
+    }
+
+    if (normalized.length < 42 && isLikelyHeading) {
+      structured.push(`#### ${normalized}`);
+      continue;
+    }
+
+    structured.push(normalized);
+  }
+
+  return structured.join("\n\n").replace(/\n{3,}/g, "\n\n");
+}
+
 function buildImportedTextBlock(text: string) {
-  const cleaned = cleanRecognizedNoteText(text);
+  const cleaned = structureRecognizedNoteText(text);
   const timestamp = new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
@@ -258,6 +415,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const editorTitle = selectedNote && draftNoteId === selectedNote.id ? draftTitle : selectedNote?.title ?? "";
   const editorContent =
     selectedNote && draftNoteId === selectedNote.id ? draftContent : selectedNote ? stripLeadingTitleHeading(selectedNote.title, selectedNote.content) : "";
+  const semanticRelatedNotes = buildSemanticRelatedNotes(effectiveNotes, selectedNote, backlinks);
+  const recentTrailNotes = buildRecentTrail(effectiveNotes, selectedNote);
 
   useEffect(() => {
     selectedNoteRef.current = selectedNote;
@@ -507,8 +666,10 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
     const initialContent = anchorTitle ? `Linked from [[${anchorTitle}]]\n\n` : "";
 
+    focusFreshNoteRef.current = true;
+
     try {
-      await createNote({
+      const creation = createNote({
         title: "Untitled note",
         content: initialContent,
         colorGroup: selectedNote?.colorGroup ?? selectedNote?.folder ?? "Vault",
@@ -516,9 +677,11 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
         status: "draft",
         graphPosition
       });
-      focusFreshNoteRef.current = true;
       setActiveView("note");
+      await creation;
     } catch {
+      focusFreshNoteRef.current = false;
+      setActiveView("vault");
       toast.error("Could not create note");
     }
   }
@@ -929,6 +1092,36 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
     </div>
   ) : null;
 
+  const semanticPanel = semanticRelatedNotes.length ? (
+    <div className={isCompact ? "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4" : "rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <Sparkles className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Related threads</p>
+      </div>
+      <div className="mt-3 space-y-2">
+        {semanticRelatedNotes.map(({ note, reasons, score }) => (
+          <button
+            key={note.id}
+            type="button"
+            onClick={() => {
+              selectNote(note.id);
+              setActiveView("note");
+            }}
+            className="flex w-full items-start justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-white">{note.title}</span>
+              <span className="mt-1 block text-xs text-slate-400">{reasons.join(" • ")}</span>
+            </span>
+            <span className="ml-3 shrink-0 rounded-full border border-[rgba(239,191,114,0.18)] bg-[rgba(239,191,114,0.08)] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[#fff4de]">
+              {Math.round(score)}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const upcomingPanel = upcomingScheduledNotes.length ? (
     <div className={isCompact ? `${isKeyboardOpen ? "hidden" : "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
       <div className="flex items-center gap-2">
@@ -952,6 +1145,37 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
             </span>
             <span className="ml-3 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
               {note.schedule?.done ? "Done" : "Next"}
+            </span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+  const recentTrailPanel = recentTrailNotes.length ? (
+    <div className={isCompact ? `${isKeyboardOpen ? "hidden" : "mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
+      <div className="flex items-center gap-2">
+        <History className="size-4 text-[color:var(--accent-amber)]" />
+        <p className={isCompact ? "text-[11px] uppercase tracking-[0.28em] text-white/38" : "text-xs uppercase tracking-[0.22em] text-slate-500"}>Resume trail</p>
+      </div>
+      <p className={isCompact ? "mt-2 text-sm leading-6 text-white/68" : "mt-2 text-sm text-slate-300"}>Pick up where your recent thinking left off.</p>
+      <div className="mt-3 space-y-2">
+        {recentTrailNotes.map((note, index) => (
+          <button
+            key={note.id}
+            type="button"
+            onClick={() => {
+              selectNote(note.id);
+              setActiveView("note");
+            }}
+            className="flex w-full items-center justify-between rounded-[18px] border border-white/8 bg-white/5 px-3.5 py-3 text-left transition hover:bg-white/8"
+          >
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium text-white">{note.title}</span>
+              <span className="mt-1 block text-xs text-slate-400">Updated {formatUpdatedAt(note.updatedAt)}</span>
+            </span>
+            <span className="ml-3 rounded-full border border-white/8 px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-slate-300">
+              {index === 0 ? "Now" : "Recent"}
             </span>
           </button>
         ))}
@@ -1186,6 +1410,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
               {capturePanel}
 
+              {semanticPanel}
+
               {schedulePanel}
 
               <div className={isCompact ? `${isKeyboardOpen ? "mt-5 opacity-0 pointer-events-none h-0 overflow-hidden" : "mt-8 space-y-3"}` : "mt-6 rounded-[28px] border border-white/10 bg-black/20 p-4"}>
@@ -1216,6 +1442,8 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
               </div>
 
               {upcomingPanel}
+
+              {recentTrailPanel}
             </div>
 
             {isCompact ? (
