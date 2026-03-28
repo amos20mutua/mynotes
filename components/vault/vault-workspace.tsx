@@ -27,6 +27,8 @@ type VaultWorkspaceProps = {
   initialVault: VaultData;
 };
 
+const PRIVATE_WORKSPACE_KEY = "vault-private-workspace";
+
 type DetectedTextBlock = {
   rawValue: string;
 };
@@ -697,6 +699,13 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const [activeView, setActiveView] = useState<"vault" | "note">("vault");
   const [publicSelectedNoteId, setPublicSelectedNoteId] = useState(initialVault.notes[0]?.id ?? "");
   const [phaseShift, setPhaseShift] = useState<"idle" | "enter-note" | "return-vault">("idle");
+  const [preferPrivateWorkspace, setPreferPrivateWorkspace] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.localStorage.getItem(PRIVATE_WORKSPACE_KEY) === "1";
+  });
   const [isStandaloneWorkspace, setIsStandaloneWorkspace] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -740,7 +749,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
   const privateSeedLinks = isLoaded ? links : defaultVaultData.links;
   const publicSeedNotes = initialVault.notes;
   const publicSeedLinks = initialVault.links;
-  const workspaceMode: "public" | "private" = isStandaloneWorkspace ? "private" : "public";
+  const workspaceMode: "public" | "private" = isStandaloneWorkspace || preferPrivateWorkspace ? "private" : "public";
   const workingNotes = workspaceMode === "public" ? publicSeedNotes : privateSeedNotes;
   const workingLinks = workspaceMode === "public" ? publicSeedLinks : privateSeedLinks;
   const effectiveNotes = useDeferredValue(workingNotes);
@@ -826,6 +835,18 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
     return () => mediaQuery.removeEventListener("change", updateMode);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (preferPrivateWorkspace) {
+      window.localStorage.setItem(PRIVATE_WORKSPACE_KEY, "1");
+    } else {
+      window.localStorage.removeItem(PRIVATE_WORKSPACE_KEY);
+    }
+  }, [preferPrivateWorkspace]);
 
   useEffect(() => {
     loadVault().catch(() => {
@@ -1120,7 +1141,7 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
   async function createFreshNote(graphPosition?: VaultNote["graphPosition"], connectToTitle?: string) {
     if (isReadOnly) {
-      return;
+      setPreferPrivateWorkspace(true);
     }
 
     const anchorTitle = connectToTitle?.trim() || selectedNote?.title?.trim() || "";
@@ -1143,6 +1164,46 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
       focusFreshNoteRef.current = false;
       setActiveView("vault");
       toast.error("Could not create note");
+    }
+  }
+
+  async function startEditingPublicCopy() {
+    if (!selectedNote || !isReadOnly) {
+      return;
+    }
+
+    const existingPrivateNote = privateSeedNotes.find((note) => normalizeTitle(note.title) === normalizeTitle(selectedNote.title));
+
+    setPreferPrivateWorkspace(true);
+    setActiveView("note");
+
+    if (existingPrivateNote) {
+      selectNote(existingPrivateNote.id);
+      return;
+    }
+
+    focusFreshNoteRef.current = true;
+
+    try {
+      const creation = createNote({
+        title: selectedNote.title,
+        content: stripLeadingTitleHeading(selectedNote.title, selectedNote.content),
+        colorGroup: selectedNote.colorGroup ?? selectedNote.folder ?? "Vault",
+        folder: selectedNote.folder ?? selectedNote.colorGroup ?? "Vault",
+        tags: Array.from(new Set([...(selectedNote.tags ?? []), "personal-copy"])),
+        status: "draft"
+      });
+
+      await creation;
+      const latest = useVaultStore.getState().notes[0];
+
+      if (latest) {
+        selectNote(latest.id);
+      }
+
+      toast.success("Opened your editable copy");
+    } catch {
+      toast.error("Could not open your personal copy");
     }
   }
 
@@ -2107,6 +2168,21 @@ export function VaultWorkspace({ initialVault }: VaultWorkspaceProps) {
 
               <div className={isCompact ? "flex items-center gap-3" : "flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-slate-500"}>
                 {!isCompact ? <span>{isReadOnly ? "Topic note" : isSaving ? "Updating..." : "Up to date"}</span> : null}
+                {isReadOnly ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void startEditingPublicCopy();
+                    }}
+                    className={
+                      isCompact
+                        ? "inline-flex h-12 items-center justify-center rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.14)] px-4 text-sm font-medium text-[#fff4de] shadow-[0_20px_56px_rgba(0,0,0,0.28)] transition hover:bg-[rgba(239,191,114,0.2)]"
+                        : "rounded-full border border-[rgba(239,191,114,0.22)] bg-[rgba(239,191,114,0.12)] px-3.5 py-2 text-[#fff4de] transition hover:bg-[rgba(239,191,114,0.18)]"
+                    }
+                  >
+                    Edit your copy
+                  </button>
+                ) : null}
                 {!isReadOnly ? (
                   <button
                     type="button"

@@ -48,9 +48,9 @@ Wisdom is not the speed of your mind. It is the quality of your judgment when de
       "2026-03-28T08:00:00.000Z"
     ),
     makePublicNote(
-      "christian-god",
-      "Christian God",
-      `# Christian God
+      "god",
+      "God",
+      `# God
 
 The deepest need of the human soul is not merely information about God, but alignment with Him.
 
@@ -192,7 +192,7 @@ Public speaking is not the art of sounding powerful. It is the discipline of car
 ## Connected themes
 - [[Wisdom]]
 - [[Purpose]]
-- [[Christian God]]
+- [[God]]
 - [[Clarity]]
 `,
       ["speaking", "communication", "conviction"],
@@ -222,7 +222,7 @@ Purpose is not a mood. It is a governing direction that organizes sacrifice, att
 ## Connected themes
 - [[Wisdom]]
 - [[Discipline]]
-- [[Christian God]]
+- [[God]]
 - [[Building Tech]]
 `,
       ["purpose", "calling", "direction"],
@@ -406,7 +406,7 @@ Discipline is the agreement you make with your future self that your moods will 
 - [[Purpose]]
 - [[Attention]]
 - [[Character]]
-- [[Christian God]]
+- [[God]]
 `,
       ["discipline", "consistency", "growth"],
       "2026-03-28T08:24:00.000Z"
@@ -557,7 +557,7 @@ Truth is not harsh because it is accurate. It only feels harsh when illusion has
 - [[Clarity]]
 - [[Wisdom]]
 - [[Character]]
-- [[Christian God]]
+- [[God]]
 `,
       ["truth", "reality", "honesty"],
       "2026-03-28T08:34:00.000Z"
@@ -616,7 +616,7 @@ Discernment is the ability to sense difference where others only see similarity.
 ## Connected themes
 - [[Wisdom]]
 - [[Truth]]
-- [[Christian God]]
+- [[God]]
 - [[Purpose]]
 `,
       ["discernment", "judgment", "spiritual"],
