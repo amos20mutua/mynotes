@@ -743,7 +743,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   };
 
   return (
-    <section className="relative h-full min-h-0 overflow-hidden bg-[#050811] max-sm:rounded-none sm:min-h-[90vh] sm:rounded-[32px] sm:border sm:border-white/6">
+    <section className="vault-ambient-graph relative h-full min-h-0 overflow-hidden bg-[#050811] max-sm:rounded-none sm:min-h-[90vh] sm:rounded-[32px] sm:border sm:border-white/6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_18%,rgba(123,192,255,0.12),transparent_22%),radial-gradient(circle_at_78%_18%,rgba(255,196,120,0.1),transparent_18%),radial-gradient(circle_at_48%_75%,rgba(117,216,190,0.08),transparent_24%),linear-gradient(180deg,rgba(10,15,28,0.82),rgba(4,7,15,0.96))]" />
       <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:180px_180px]" />
       <div className="pointer-events-none absolute inset-x-[8%] top-[20%] h-[42%] rounded-full bg-[radial-gradient(circle,rgba(120,150,255,0.1),transparent_66%)] blur-3xl" />
@@ -1057,7 +1057,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
           style={isMobile ? { ...mobilePanelStyle, left: "50%", transform: "translateX(-50%)", width: "min(76vw, 284px)" } : undefined}
           className="absolute inset-x-3 z-20 flex flex-col items-center max-sm:inset-x-auto md:inset-x-auto md:bottom-4 md:left-4 md:w-[340px]"
         >
-          <div className="flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-[rgba(6,10,20,0.34)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[22px] max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:bg-[rgba(6,10,20,0.38)] max-sm:p-3.5 md:backdrop-blur-[28px]">
+          <div className="vault-ambient-panel flex w-full flex-col rounded-[30px] border border-[rgba(239,191,114,0.14)] bg-[rgba(6,10,20,0.34)] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-[22px] max-sm:min-h-[132px] max-sm:rounded-[24px] max-sm:bg-[rgba(6,10,20,0.38)] max-sm:p-3.5 md:backdrop-blur-[28px]">
             <div>
               <p className="text-[10px] uppercase tracking-[0.22em] text-slate-500">
                 {previewNode.id === ROOT_NODE_ID ? "Vault core" : previewNode.type === "ghost" ? "Linked idea" : "Selected note"}

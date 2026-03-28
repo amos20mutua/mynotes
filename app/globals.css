@@ -191,6 +191,28 @@ textarea {
   cursor: grabbing;
 }
 
+.vault-ambient-graph::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 52% 38%, rgba(255, 255, 255, 0.045), transparent 18%),
+    radial-gradient(circle at 48% 62%, rgba(239, 191, 114, 0.04), transparent 22%);
+  animation: vault-breathe 11s ease-in-out infinite;
+}
+
+.vault-ambient-panel {
+  animation: vault-panel-drift 13s ease-in-out infinite;
+}
+
+.vault-mini-orb {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 0 28px rgba(239, 191, 114, 0.08);
+  animation: vault-orb-spin 15s linear infinite;
+}
+
 .note-rich-editor {
   caret-color: var(--accent-amber);
   word-break: break-word;
@@ -257,6 +279,35 @@ textarea {
 
 .note-rich-editor li + li {
   margin-top: 0.28em;
+}
+
+@keyframes vault-breathe {
+  0%, 100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+@keyframes vault-panel-drift {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes vault-orb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .note-rich-editor ul[data-type="taskList"] {
