@@ -1,5 +1,5 @@
-const CACHE_NAME = "vault-static-v3";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/icon", "/apple-icon"];
+const CACHE_NAME = "vault-static-v4";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/icon-192", "/icon", "/apple-icon"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

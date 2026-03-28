@@ -40,6 +40,8 @@ type DeferredInstallPrompt = Event & {
   userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
 };
 
+type InstallGuidePlatform = "ios" | "android" | null;
+
 const VIEWPORT_WIDTH = 1200;
 const VIEWPORT_HEIGHT = 780;
 const DEFAULT_SCALE = 1.12;
@@ -242,7 +244,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const [pulseWave, setPulseWave] = useState<{ nodeId: string; startedAt: number } | null>(null);
   const [activeTrail, setActiveTrail] = useState<Array<{ x: number; y: number; radius: number }>>([]);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState<DeferredInstallPrompt | null>(null);
-  const [showInstallHelp, setShowInstallHelp] = useState(false);
+  const [installGuidePlatform, setInstallGuidePlatform] = useState<InstallGuidePlatform>(null);
   const [isStandaloneApp, setIsStandaloneApp] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -267,6 +269,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const hapticTravelRef = useRef(0);
   const rotationAccumulatorRef = useRef(0);
   const isIos = typeof window !== "undefined" && /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const isAndroid = typeof window !== "undefined" && /android/i.test(window.navigator.userAgent);
   const deferredSearchInput = useDeferredValue(searchInput);
   const query = deferredSearchInput.trim().toLowerCase();
 
@@ -689,7 +692,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const safeTopStyle = {
     top: isMobile ? "calc(env(safe-area-inset-top, 0px) + 12px)" : undefined
   } as const;
-  const mobileHeaderOffset = showInstallHelp ? "calc(env(safe-area-inset-top, 0px) + 122px)" : "calc(env(safe-area-inset-top, 0px) + 12px)";
+  const mobileHeaderOffset = installGuidePlatform ? "calc(env(safe-area-inset-top, 0px) + 122px)" : "calc(env(safe-area-inset-top, 0px) + 12px)";
   const topBarStyle = isMobile ? { top: mobileHeaderOffset } : safeTopStyle;
   const graphVerticalOffset = isMobile ? -34 : 0;
   const installSheetStyle = {
@@ -698,10 +701,16 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
   const mobilePanelStyle = {
     bottom: "calc(env(safe-area-inset-bottom, 0px) + 18px)"
   } as const;
+  const androidBrowserLabel =
+    typeof window !== "undefined" && /samsungbrowser/i.test(window.navigator.userAgent)
+      ? "Samsung Internet"
+      : typeof window !== "undefined" && /firefox/i.test(window.navigator.userAgent)
+        ? "Firefox"
+        : typeof window !== "undefined" && /edg(a|ios)?/i.test(window.navigator.userAgent)
+          ? "Edge"
+          : "Chrome";
 
   const handleInstall = async () => {
-    const isAndroid = /android/i.test(window.navigator.userAgent);
-
     if (isStandaloneApp) {
       toast.message("Already installed");
       return;
@@ -712,17 +721,19 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
       const choice = await deferredInstallPrompt.userChoice;
       if (choice.outcome === "accepted") {
         setDeferredInstallPrompt(null);
+      } else if (isAndroid) {
+        setInstallGuidePlatform("android");
       }
       return;
     }
 
     if (isIos) {
-      setShowInstallHelp(true);
+      setInstallGuidePlatform("ios");
       return;
     }
 
     if (isAndroid) {
-      toast.message("On Android, use the browser menu and choose Install app or Add to Home screen.");
+      setInstallGuidePlatform("android");
       return;
     }
 
@@ -752,17 +763,26 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
       <div className="pointer-events-none absolute inset-0 opacity-[0.05] [background-image:linear-gradient(to_right,rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.05)_1px,transparent_1px)] [background-size:180px_180px]" />
       <div className="pointer-events-none absolute inset-x-[8%] top-[20%] h-[42%] rounded-full bg-[radial-gradient(circle,rgba(120,150,255,0.1),transparent_66%)] blur-3xl" />
 
-      {showInstallHelp ? (
+      {installGuidePlatform ? (
         <div style={installSheetStyle} className="absolute inset-x-4 z-30 sm:hidden">
           <div className="rounded-[24px] border border-white/12 bg-[#030617]/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-medium leading-7 text-white">To install on iPhone, open Vault in Safari, then tap Safari&apos;s Share button and choose Add to Home Screen.</p>
-                <p className="mt-2 text-xs leading-6 text-white/58">After that, Vault opens from your home screen in standalone app mode, with its own icon and no Safari address bar.</p>
+                {installGuidePlatform === "ios" ? (
+                  <>
+                    <p className="text-sm font-medium leading-7 text-white">To install on iPhone, open Vault in Safari, then tap Safari&apos;s Share button and choose Add to Home Screen.</p>
+                    <p className="mt-2 text-xs leading-6 text-white/58">After that, Vault opens from your home screen in standalone app mode, with its own icon and no Safari address bar.</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-medium leading-7 text-white">Install Vault from {androidBrowserLabel} using the browser menu, then choose Install app or Add to Home screen.</p>
+                    <p className="mt-2 text-xs leading-6 text-white/58">If the install prompt does not appear directly, open the 3-dot menu, refresh once, and try again. Once installed, Vault opens like a normal standalone app.</p>
+                  </>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => setShowInstallHelp(false)}
+                onClick={() => setInstallGuidePlatform(null)}
                 className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 bg-white/6 text-sm text-slate-200 transition hover:bg-white/10"
               >
                 x
@@ -786,7 +806,7 @@ export function GraphView({ notes, links, mode, selectedNote, selectedClusterMod
               }}
               className="rounded-full border border-white/10 bg-slate-950/40 px-3 py-2 text-xs font-medium text-slate-100 shadow-[0_20px_56px_rgba(0,0,0,0.2)] backdrop-blur-xl transition hover:bg-white/8 sm:px-4 sm:text-sm sm:backdrop-blur-2xl"
             >
-              {isIos ? "Install on iPhone" : "Install"}
+              {isIos ? "Install on iPhone" : isAndroid ? "Install on Android" : "Install"}
             </button>
           ) : null}
 
